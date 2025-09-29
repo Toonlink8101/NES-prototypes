@@ -10,106 +10,107 @@
 VAR:    .RES 1      ;reserves 1 byte of memory
 .segment "STARTUP"
 
-RESET:
-    SEI         ;disables interupts
-    CLD         ;turn off decimal mode
+reset:
+    sei         ;Disables interupts
+    sld         ;Turn off decimal mode
 
-    LDX #%10000000    ;disable IRQ
-    STX $4017
-    LDX #$00
-    STX $4010       ;disable PCM
+    ldx #%10000000    ;disable IRQ
+    stx $4017
+    ldx #$00
+    stx $4010       ;Disable PCM
 
-    ;init the stack register
-    LDX #$FF
-    TXS         ;transfer x to the stack
+    ;Init the stack register
+    ldx #$FF
+    txs         ;Transfer x to the stack
 
     ;Clear PPU registers
-    LDX #$00
-    STX $2000
-    STX $2001
+    ldx #$00
+    stx $2000
+    stx $2001
 
-    ;WAIT FOR VBLANK
+    ;Wait for Vblank
 :
-    BIT $2002
-    BPL :-
+    bit $2002
+    bpl :-
 
-    ;CLEARING 2K MEMORY
-    TXA
-CLEARMEMORY:            ;$0000 - $07FF
-    STA $0000,  X
-    STA $0100,  X
-    STA $0300,  X
-    STA $0400,  X
-    STA $0500,  X
-    STA $0600,  X
-    STA $0700,  X
-    LDA #$FF
-    STA $0200,  X
-    LDA #$00
-    INX
-    CPX #$00
-    BNE CLEARMEMORY
+    ;clearing 2k memory
+    txa
+clearmemory:            ;$0000 - $07ff
+    sta $0000,  x
+    sta $0100,  x
+    sta $0300,  x
+    sta $0400,  x
+    sta $0500,  x
+    sta $0600,  x
+    sta $0700,  x
+    lda #$ff
+    sta $0200,  x
+    lda #$00
+    inx
+    cpx #$00
+    bne clearmemory
 
-    ;WAIT FOR VBLANK
+    ;Wait for Vblank
 :
-    BIT $2002
-    BPL :-
+    bit $2002
+    bpl :-
 
-    ;SETTING SPRITE RANGE
-    LDA #$02
-    STA $4014
+    ;setting sprite range
+    lda #$02
+    sta $4014
 
-    LDA #$3F    ;$3F00
-    STA $2006
-    LDA #$00
-    STA $2006
+    lda #$3f    ;$3f00
+    sta $2006
+    lda #$00
+    sta $2006
 
-    LDX #$00
-LOADPALETTES:
-    LDA PALETTEDATA, X
-    STA $2007
-    INX
-    CPX #$20
-    BNE LOADPALETTES
-
-
-    LDX #$00
-LOADSPRITES:
-        LDA SPRITEDATA, X
-        STA $0200, X
-        INX
-        CPX #$10    ;16bytes (4 bytes per sprite, 4 sprites total)
-        BNE LOADSPRITES
-
-;ENABLE INTERUPTS
-    CLI
-
-    LDA #%10010000
-    STA $2000               ;WHEN VBLANK OCCURS CALL NMI
-
-    LDA #%00011110          ;show sprites and background
-    STA $2001
+    ldx #$00
+loadpalettes:
+    lda palettedata, x
+    sta $2007
+    inx
+    cpx #$20
+    bne loadpalettes
 
 
-    INFLOOP:
-        JMP INFLOOP
-NMI:
-    LDA #$02    ;LOAD SPRITE RANGE
-    STA $4014
+    ldx #$00
+loadsprites:
+        lda spritedata, x
+        sta $0200, x
+        inx
+        cpx #$10    ;16bytes (4 bytes per sprite, 4 sprites total)
+        bne loadsprites
 
-PALETTEDATA:
-	.byte $00, $0F, $00, $10, 	$00, $0A, $15, $01, 	$00, $29, $28, $27, 	$00, $34, $24, $14 	;background palettes
-	.byte $31, $0F, $15, $30, 	$00, $0F, $11, $30, 	$00, $0F, $30, $27, 	$00, $3C, $2C, $1C 	;sprite palettes
+;enable interUpts
+    cli
 
-SPRITEDATA:
-;Y, SPRITE NUM, attributes, X
+    lda #%10010000
+    sta $2000               ;When Vblank occurs call nmi
+
+    lda #%00011110          ;show sprites and background
+    sta $2001
+
+
+    loop_forever:
+        jmp loop_forever
+nmi:
+    lda #$02    ;load sprite range
+    sta $4014
+	rti
+
+palettedata:
+	.byte $00, $0f, $00, $10, 	$00, $0a, $15, $01, 	$00, $29, $28, $27, 	$00, $34, $24, $14 	;background palettes
+	.byte $31, $0f, $15, $30, 	$00, $0f, $11, $30, 	$00, $0f, $30, $27, 	$00, $3c, $2c, $1c 	;sprite palettes
+
+spritedata:
+;Y, sprite num, attributes, X
 ;76543210
 ;||||||||
-;||||||++- Palette (4 to 7) of sprite
+;||||||++- palette (4 to 7) of sprite
 ;|||+++--- Unimplemented
-;||+------ Priority (0: in front of background; 1: behind background)
-;|+------- Flip sprite horizontally
-;+-------- Flip sprite vertically
+;||+------ priority (0: in front of background; 1: behind background)
+;|+------- flip sprite horizontally
+;+-------- flip sprite vertically
 
 	.byte $40, $00, $00, $40
 	.byte $40, $01, $00, $48
@@ -124,8 +125,8 @@ SPRITEDATA:
 
 
 .segment "VECTORS"
-    .word NMI
-    .word RESET
+    .word nmi
+    .word reset
     ; specialized hardware interrupts
 .segment "CHARS"
     .incbin "rom.chr"
