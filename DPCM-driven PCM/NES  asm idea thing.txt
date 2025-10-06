@@ -1,0 +1,580 @@
+;;; DMC IRQ driven DMC channels ;;;
+; This version has 4 software channels: two square waves,
+; a thin pulse, and a noise generator. It also has
+; multiple variables that are considered zeropage for
+; speed, but could easily be put in other parts of RAM.
+; The only exception are the variables for scrolling and
+; the DMC output buffer.
+
+;TODO:
+;- add a double buffer for DMC_output to skip calculating once
+
+; Example layout for any given frame, starting with vblank:
+;before the frame - sync to start of Vblank
+;start of line 0 - Update DPCM w/ first buffer
+;middle of line ~0 - OAM DMA
+;midline 4 - perform Vblank updates
+;end of line 5 - Update DPCM w/ second buffer, initialize
+; DMC interrupt 
+;midline 6 - continue vblank updates
+;end of line 9 - interrupt updates DPCM & buffers next update
+;Continue vblank routine with interrupts until either the 
+; vblank routine finishes or vblank itself is over.
+;line 21 - Rendering starts, and the first potential visual 
+; interrupt is called & executed, having the possibility of
+; mid-line scrolling.
+
+; LUT for scroll values
+; identity_table needed
+
+;;; zeropage variables ;;;
+.segment "ZEROPAGE"
+DMC_output: .res 1 ; init to zero
+DMC_2nd_output: .res 1 ; init to zero, only used once per frame
+preserve_A: .res 1
+preserve_X: .res 1	; might be unneeded
+preserve_Y: .res 1
+LUT_offset: .res 1
+
+;;; other variables ;;;
+; some of these could be made zeropage for speed
+.segment "BSS"
+irq_counter: .res 1
+square1_counter: .res 1 ; init to ???
+square1_divider: .res 1 ; determines wavelength
+square1_volume: .res 1 ; volume is always "4-bit"
+;;;;
+;square2_counter: .res 1
+;square2_divider: .res 1
+;square2_volume: .res 1
+;;;;
+saw_counter: .res 1
+saw_divider: .res 1
+noise_counter: .res 1
+noise_divider: .res 1
+noise_volume: .res 1
+lfsr: .res 1			; init to %10011001 or any non-zero
+pulse_counter: .res 1
+pulse_divider: .res 1
+pulse_volume: .res 1
+
+
+.segment "CODE"
+IRQ:
+
+
+; crash handler?
+
+; preserve registers
+sta preserve_A
+; stx preserve_X
+sty preserve_Y
+
+; set things up, as needed
+
+; time a write to DMC_output from previous irq
+lda DMC_output
+sta $4011
+
+; time a screen scroll if queued
+
+
+; This should be done with a LUT table and an IRQ counter.
+; The table will have pre-baked scroll positions that can
+; be cycled through and offset for different effects.
+; Assuming fine scrolling in both directions mid-frame,
+; then four writes to $2005 and $2006 are necessary.
+; The later two of those writes must be done during hblank,
+; to avoid visual glitches.
+
+; Use lda/ldx abs, Y where Y has the offset for
+; the desired section of scroll values. This should take
+; 4 cycles per load and 4 per write, meaning with 4 writes
+; needed, that alone will take 16 cycles. Y will also need
+; to be loaded with the offset, which adds 3/4 more cyclhs
+; depending on whether zeropage is used. Lastly, adding
+; another read/write of (3+4) cycles for $4011,
+; that gives a total of 16 + 3 + 7 = 26 
+; (plus 6/9 for preserving registers)
+
+; While this doesn't fit within the timing before hblank,
+; which should occur roughly 22 cycles after the 
+; IRQ interrupt, it should finish during hblank.
+; This is also when the DMC needs to be recalled.
+; And of course, there's another 3 cycles of timing jitter 
+; on top of all that... I wonder why no one has tried this
+; before "xD
+
+; I should definitely further research how others have been
+; able to take timing jitter into account, or at least the 
+; jitter caused by the interrupt, since it has to wait for
+; whatever instruction it's interrupting to finish before 
+; it kicks in properly.
+
+;;;;
+;Types of mid-line scrolling
+;;;;
+; 1. Fine X* (2 cycles before + 7 cycles after)
+; 2. Nametable, Coarse X/Y, and 0yy of fine Y (4+4)
+; 3. Coarse/fine X* (11+7)
+; 4. Nametable, Coarse X/Y, fine X*, and 0yy of fine Y (10+11)
+; 4b. If w=1, Coarse/Fine X/Y
+; 5. Full X/Y (16+8)
+;
+; *Note: options that end with a write to $2005 during hblank 
+; can set up a delayed coarse X update that's triggered at the 
+; end of the following scanline. These can also be used to set
+; w to 1 for options that require that to work.
+
+; 1. Scrolling only fine X, use a $2005 write with BIT $2002
+; Note: this can also set up a delayed update to coarse X
+; that triggers at the end of the following scanline
+;LDA #%XXXXXxxx		;old (or delayed) coarse X, new fine X
+;hblank
+;STA $2005
+;BIT $2002	;reset W
+
+; 2. Scrolling by not fine X, use two $2006 writes at the
+; cost of zeroing the high bit of fine Y
+;LDA #%00yyNNYY
+;STA $2006		;no video update yet
+;LDA #%YYYXXXXX
+;hblank
+;STA $2006
+
+; 3. Scrolling only X (coarse and fine), use two $2005 writes
+; Note: this can also set up a delayed update to coarse X
+; that triggers at the end of the following scanline
+;LDA #%XXXXXxxx		;new coarse X, old fine X
+;STA $2005
+;BIT $2002	;reset W
+;LDA #%XXXXXxxx		;new (or delayed) coarse X, new fine X
+;hblank
+;STA $2005
+;BIT $2002	;reset W
+
+
+; 4. Scrolling by both coarse/fine X and Y, use a combination 
+; of the previous methods with the same drawbacks
+;LDA #%00yyNNYY
+;STA $2006		;no video update yet
+;LDA #%YYYXXXXX
+;LDY #%XXXXXxxx		;old (or delayed) coarse X, new fine X
+;hblank
+;STA $2006
+;STY $2005
+;BIT $2002	;reset W
+
+; 4b. Scrolling by coarse/fine X/Y, but w must be at 1
+; Note: any scrolling method that resets W can skip that
+; step to use this scrolling method next
+;LDA #%YYYYYyyy		;3 low bits of coarse Y overwritten later
+;STA $2005
+;LDA #%XXXXXxxx		;all of coarse X is overwritten later
+;LDY #%YYYXXXXX
+;hblank
+;STA $2005
+;STY $2006
+
+
+; 5. Full control, interleave $2006 and $2005 writes
+;LDA #%0000NN00
+;STA $2006
+;LDA #%YYYYYyyy		;3 low bits of coarse Y overwritten later
+;STA $2005
+;LDA #%XXXXXxxx		;all of coarse X is overwritten later
+;LDY #%YYYXXXXX
+;hblank
+;STA $2005
+;STY $2006
+
+
+
+; If timing is right, maybe retrigger DMC wiggle here?
+; how to know the # of cycles until hblank?
+; Remember retriggering DMC requires 3 writes due to a
+; hardware bug.
+
+; Timing here on out is no longer strict
+
+;;;;
+; Calculate next DMC position
+;;;;
+
+; init Y to hold new output
+; preserve Y here instead?
+ldy #0
+
+; Channels currently have set waveforms.
+; Should that change?
+
+; generate square wave 1
+lda square1_counter
+sec
+sbc #1 
+sta square1_counter
+bne:+
+	; reset counter
+	lda square1_divider
+	lsr
+	ora #$80 ; set up overflow
+	sta square1_counter
+:
+bvc:+
+	; reset counter
+	lda square1_divider
+	lsr
+	adc #0	; handle odd lengths
+	sta square1_counter
+:
+; if plus, add volume to output
+bmi:+
+	tya
+	clc
+	adc square1_volume
+	tay
+:
+
+;;;
+;	; Generate Square Wave, optimized
+;		lda square1_counter
+;		sec
+;		sbc #1					;C clear
+;		bne:+
+;			; reset counter
+;			lda square1_divider
+;			lsr
+;			ora #$80 ; set up overflow
+;			;C might be set, but A is minus, so ADC is skipped
+;		:
+;		bvc:+
+;			; reset counter
+;			lda square1_divider
+;			lsr
+;			adc #0	; handle odd lengths	;C clear
+;		:
+;		sta square1_counter
+;		; if plus, add volume to output
+;		bmi:+
+;			tya
+;			adc square1_volume
+;			tay
+;		:
+;;;
+;;;
+;	; Generate Square Wave, w/ X as index in dmc_state			; dmc_state -> (divider, counter, volume) x4
+;		inx
+;		lda dmc_state, X
+;		sbc #0				;same as DEC A, since C should be clear at the start
+;		bne:+
+;			; reset counter
+;			dex
+;			lda dmc_state, X
+;			lsr
+;			ora #$80 ; set up overflow
+;		:
+;		bvc:+
+;			; reset counter
+;			dex
+;			lda dmc_state, X
+;			lsr
+;			adc #0	; handle odd lengths
+;		:
+;		inx
+;		sta dmc_state, X
+;		; if plus, add volume to output
+;		bmi:+
+;			inx
+;			tya
+;			adc dmc_state, X
+;			tay
+;		:
+;;;
+
+
+; Can't have more than 4 channels, for now.
+; Better to implement switching waveforms instead?
+
+;;;
+; The following section contains advanced types of generation
+; using the square2 variables. These can be updated or
+; otherwise changed to fit later designs.
+;;;
+;; generate wide pulse wave
+;; more intensive than square wave
+;lda square2_counter
+;sec
+;sbc #1
+;bne:+
+;	; reset counter
+;	lda square2_divider
+;	lsr		; divide by 4 w/o rounding
+;	lsr
+;	ora #$80 ; set up overflow
+;:
+;bvc:+
+;	; reset counter
+;	lda square2_divider
+;	lsr		; divide by 4 w/ rounding
+;	lsr
+;	adc #0
+;	sta square2_counter		;use as temp
+;	asl						;mult by 3
+;	adc square2_counter
+;:
+;sta square2_counter
+;; if plus, add volume to output
+;bmi:+
+;	tya
+;	clc
+;	adc square2_volume
+;	tay
+;:
+;;;
+;
+;;;
+;; generate pitch slide
+;; Perhaps this could simply be added to a channel.
+;; That way, the pitch slide could simply be a variables
+;; that's subtracted from the divider per cycle, or at
+;; the very least, it could be toggled by a boolean.
+;; Maybe the top bit of the volume could be used.
+;lda square2_counter
+;sec
+;sbc #1
+;sta square2_counter
+;bne:+
+;	; reset counter
+;	lda square2_divider
+;	lsr
+;	ora #$80 ; set up overflow
+;	sta square2_counter
+;:
+;bvc:+
+;	; reset counter
+;	lda square2_divider
+;	lsr
+;	adc #0
+;	sta square2_counter
+;	; decrease pitch
+;	dec square2_divider
+;:
+;; if plus, add volume to output
+;bmi:+
+;	tya
+;	clc
+;	adc square2_volume
+;	tay
+;:
+;;;
+
+
+; Generate sawtooth
+; has no volume control. Instead, volume varies by pitch
+dec saw_counter
+bne:+
+	lda saw_divider
+	sta saw_counter
+:
+lda saw_counter
+and #%00111100
+lsr					;could be alr (unofficial opcode)
+lsr						; carry clear
+adc identity_table, y	; could be "adc Y" macro
+tay
+
+;;;
+;	; Generate sawtooth, w/ X as index in dmc_state
+;	lda dmc_state, X
+;	inx
+;	dec dmc_state, X
+;	bne:+
+;		sta dmc_state, X
+;	:
+;	lda dmc_state, X
+;	alr#%00011110			; and #i, then lsr
+;	lsr						; carry clear
+;	adc identity_table, y	; could be "adc Y" macro
+;	tay
+;;;
+
+; This version of the sawtooth has better volume in the high
+; ranges and for more notes in the lower range
+;;;
+;; Generate half sawtooth
+;; has no volume control. Instead, volume varies by pitch
+;dec saw_counter
+;bne:+
+;	lda saw_divider
+;	sta saw_counter
+;:
+;; handle sustain after saw
+;lda saw_counter
+;cmp #$1F			;DCP can be used instead of DEC without CMP, at the cost 1 inaccurate cycle for low notes
+;bcc:+
+;	lda #%00011110
+;:
+;alr#%00011110			; carry clear (unofficial opcode)
+;adc identity_table, y	; could be "adc Y" macro
+;tay
+;;;
+;;;
+;; Generate half sawtooth, alt
+;; Compared to the first version, this is more effecient at the cost of one IRQ at the end of each period being inaccurate,
+;; mathematically selecting a value between the lowest point and the highest. Saves a few cycles
+;lda #$1F
+;dcp saw_counter
+;bne:+
+;	lda saw_divider
+;	sta saw_counter
+;	bcc:++
+;:
+;; handle sustain after saw
+;lda saw_counter
+;bcc:+
+;	lda #%00011110
+;:
+;alr#%00011110			; carry clear (unofficial opcode)
+;adc identity_table, y	; could be "adc Y" macro
+;tay
+;;;
+
+	; generate noise
+	dec noise_counter
+	bne:++
+		; reset counter
+		lda noise_divider		; Does this even need a counter?
+		sta noise_counter		; 4-bit counter seems like more than plenty,
+								; but none at all could work well enough for percussion
+		; galois lfsr
+		lda lfsr				; trading pitch control for 16-bit noise might be worth it
+		lsr
+		bcc:+
+			eor #%11000011		; controling this could be useful*
+		:
+		sta lfsr
+	:
+	bit lfsr
+	bpl:+
+		tya
+		clc					; CLC is kinda optional here
+		adc noise_volume	; even if C is set, it'll just be noisy
+		tay					; which is kinda the point
+	:
+
+	; What if there was a noise that made a thin pulse for
+	; each rising/falling edge of the lfsr?
+	; pseudo high-pass noise? Probably not too useful tho...
+
+	;*Technically, since the LFSR's initial state is controllable, if the EOR 
+	; could be controlled, then changing just those two values would allow you 
+	; to control the pitch of the output and match any possible period length.
+	; If the divider is removed, simplifying the code, this would be a good
+	; way to add back control with minimal effeciency loss.
+
+;;;
+;	;generate noise w/o pitch
+;	;galois lfsr
+;	lda lfsr
+;	lsr
+;	bcc:+
+;		eor lfsr_tap		;new variable
+;		clc
+;	:
+;	sta lfsr
+;	bpl:+
+;		tya
+;		adc noise_volume
+;		tay
+;	:
+;;;
+;;;
+;	;generate noise w/o pitch, alt 1
+;	;galois lfsr
+;	lsr lfsr
+;	bcc:+
+;		lda lfsr_tap		;new variable
+;		eor lfsr
+;		sta lfsr
+;		tya
+;		adc noise_volume	;carry already clear
+;		tay
+;	:
+;;;
+;;;
+;	;generate noise w/o pitch, alt 2
+;	;galois lfsr
+;	lda lfsr_tap		;new variable
+;	sre lfsr		;LSR lfsr, then EOR it with A, saving 4 cycles
+;	bcc:+
+;		sta lfsr
+;		tya
+;		adc noise_volume	;carry already clear
+;		tay
+;	:
+;;;
+;;;
+;	;generate noise w/o pitch and w/ X as index in dmc_state
+;	;galois lfsr
+;	lda dmc_state, X
+;	inx
+;	sre dmc_state, X		;LSR lfsr, then EOR it with A, saving 4 cycles
+;	bcc:+
+;		sta dmc_state, X
+;		inx
+;		tya
+;		adc dmc_state, X	;carry already clear
+;		tay
+;	:
+;;;
+
+
+; generate thin pulse
+dec pulse_counter
+bne:+
+	; reset counter
+	lda pulse_divider
+	sta pulse_counter
+
+	; add volume to output
+	tya
+	clc
+	adc pulse_volume
+	tay		; maybe skip to output instead?
+			; no need to shift Y around again
+:
+
+;;;
+;	; generate thin pulse, w/ X as index in dmc_state		; dmc_state -> (divider, counter, volume) x4
+;	
+;	lda dmc_state, X	; load divider for reset
+;	inx
+;	dec	dmc_state, X
+;	bne:+
+;		; reset counter
+;		sta dmc_state, X
+;
+;		; add volume to output
+;		inx
+;		tya
+;		adc dmc_state, X		; C should be clear at the start
+;		tay
+;	:
+;;;
+
+; prepare for output
+normal_output:
+	tya
+	asl
+	and #%01111110		; might be unneeded...
+	sta DMC_output
+
+; handle double buffered update
+
+; restore registers
+lda preserve_A
+; ldx preserve_X
+ldy preserve_Y
+
+
+rti

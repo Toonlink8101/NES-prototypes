@@ -1,6 +1,6 @@
 @echo.
 @echo Compiling...
-C:\cc65\bin\ca65 cart.s -g -o example.o
+C:\cc65\bin\ca65 cart.s -g -o example.o --cpu 6502X
 @IF ERRORLEVEL 1 GOTO failure
 @echo.
 @echo Linking...

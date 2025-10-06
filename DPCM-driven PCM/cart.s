@@ -100,15 +100,15 @@ loadsprites:
 ;enable interupts
     cli
 
-    lda #%10010000		; enable NMI, BG pattern table 1
-	;lda #%10000000		; BG pattern table 0
+    ;lda #%10010000		; enable NMI, BG pattern table 1
+	lda #%00010000		; disable NMI, BG pattern table 1
     sta $2000
 
     lda #%00011110          ;show sprites and background
     sta $2001
 
 ;init DMC
-	lda #0
+	lda #<(DMC_wiggle_sample >> 6)
 	sta $4012
 	lda #%10001111
 	sta $4010
@@ -122,6 +122,19 @@ loadsprites:
 	lda #%10011001
 	sta lfsr
 
+	lda #$1
+	sta noise_divider
+	lda #$f
+	sta noise_volume
+
+; trigger DMC
+	sei
+	lda #$10 
+	sta $4015 
+	sta $4015 
+	sta $4015 
+	cli
+
 
     loop_forever:
         lda #0
@@ -130,6 +143,11 @@ loadsprites:
 		beq loop_forever
 		
 nmi:
+	bit irq_active
+	bpl:+
+		rti
+	:
+
 	sei
     lda #>oam    ;OAM DMA
     sta $4014
@@ -139,14 +157,14 @@ nmi:
 	sta $4015 
 	sta $4015 
 	sta $4015 
-	cli
 	
 	;disable nmi
-	;lda #%00010000		; disable NMI, BG pattern table 1
-    ;sta $2000
+	lda #%00010000		; disable NMI, BG pattern table 1
+    sta $2000
 	
-	
+	cli
 	rti
+	
 	
 .segment "ZEROPAGE"
 	DMC_output: .res 1 ; init to zero
@@ -160,6 +178,7 @@ nmi:
 ; maybe the volume variable should also hold the waveform
 .segment "BSS"
 	irq_counter: .res 1
+	irq_active: .res 1
 	square1_counter: .res 1	; incremented each IRQ
 	square1_divider: .res 1 ; determines wavelength
 	square1_volume: .res 1 ; volume is always "4-bit"
@@ -174,11 +193,9 @@ nmi:
 	pulse_volume: .res 1
 
 
-.segment "RODATA"
-; DMC wiggle sample
-	.org $C000
-	.byte %10101010
-	.reloc
+.segment "DMC"
+DMC_wiggle_sample:
+	.byte $AA
 
 .segment "CODE"
 IRQ:
@@ -196,13 +213,13 @@ IRQ:
 	; time a screen scroll if queued
 	
 	
-	; acknowledge/reset IRQ
-	inc irq_counter
-	lda irq_counter
-	cmp #63
-	bcc:+
-		jmp alternate_irq_end
+	; wait for timing
+	ldy #22
 	:
+	dey
+	bne:-
+	
+	;Acknowledge/reset IRQ
 	sei
 	lda #$10
 	sta $4015
@@ -210,47 +227,49 @@ IRQ:
 	sta $4015
 	cli
 
+
 	; Timing here on out is no longer strict
 
-	;;;;
-	;Calculate next DMC position
-	;;;;
+;;;;
+Calculate_next_DMC_offset:
+;;;;
 
 	; init Y to hold new output
 	; preserve Y here instead?
 	ldy #0
 
+	;for now, skip to final waveform
+	;jmp noise_end
+
 	; Channels currently have set waveforms.
 	; Should that change?
 
-	; generate square wave 1
+	; Generate Square Wave
 	lda square1_counter
 	sec
-	sbc #1 
-	sta square1_counter
+	sbc #1					;C clear
 	bne:+
 		; reset counter
 		lda square1_divider
 		lsr
 		ora #$80 ; set up overflow
-		sta square1_counter
+		;C might be set, but A is minus, so ADC is skipped
 	:
 	bvc:+
 		; reset counter
 		lda square1_divider
 		lsr
-		adc #0	; handle odd lengths
-		sta square1_counter
+		adc #0	; handle odd lengths	;C clear
 	:
+	sta square1_counter
 	; if plus, add volume to output
 	bmi:+
 		tya
-		clc
 		adc square1_volume
 		tay
 	:
 
-	; Generate sawtooth
+	; Generate Sawtooth
 	; has no volume control. Instead, volume varies by pitch
 	dec saw_counter
 	bne:+
@@ -258,42 +277,46 @@ IRQ:
 		sta saw_counter
 	:
 	lda saw_counter
-	and #%00111100
-	lsr					;could be alr (unofficial opcode)
+	alr #%00111100			;same as AND #i, then LSR 
 	lsr						; carry clear
 	adc identity_table, y	; could be "adc Y" macro
 	tay
 
-	; generate noise
-	bit lfsr						;what if the counter held the
-	; if N, add volume to output	;state instead?
-	bpl:+
-		tya
-		clc					; CLC is kinda optional here
-		adc noise_volume	; even if C is set, it'll just be noisy
-		tay					; which is kinda the point
-	:
+	; Generate Noise
 	dec noise_counter
-	bne noise_end
+	bne:++
 		; reset counter
-		lda noise_divider
-		sta noise_counter
-
+		lda noise_divider		; Does this even need a counter?
+		sta noise_counter		; 4-bit counter seems like more than plenty,
+								; but none at all could work well enough for percussion
 		; galois lfsr
 		lda lfsr
 		lsr
 		bcc:+
-			eor #%10101001
+			eor #%11000011		; controling this could be useful*
 		:
 		sta lfsr
-noise_end:
+	:
+	bit lfsr
+	bpl:+
+		tya
+		clc					
+		adc noise_volume
+		tay
+	:
 
 	; What if there was a noise that made a thin pulse for
 	; each rising/falling edge of the lfsr?
 	; pseudo high-pass noise? Probably not too useful tho...
 
+	;*Technically, since the LFSR's initial state is controllable, if the EOR 
+	; could be controlled, then changing just those two values would allow you 
+	; to control the pitch of the output and match any possible period length.
+	; If the divider is removed, simplifying the code, this would be a good
+	; way to add back control with minimal effeciency loss.
 
-	; generate thin pulse
+
+	; Generate Thin Pulse
 	dec pulse_counter
 	bne:+
 		; reset counter
@@ -302,10 +325,10 @@ noise_end:
 
 		; add volume to output
 		tya
-		clc
-		adc pulse_volume
+		;C clear from previous ADC
+		adc pulse_volume 
 		tay		; maybe skip to output instead?
-				; no need to shift Y around again
+				; no need to move Y back and forth
 	:
 
 	; prepare for output
@@ -322,25 +345,6 @@ normal_output:
 	; ldx preserve_X
 	ldy preserve_Y
 
-
-	rti
-	
-alternate_irq_end:
-	;disable DMC
-	sei
-	lda #$00
-	sta $4015
-	sta $4015
-	sta $4015
-	cli
-
-	;disable DMC IRQ
-	;lda #%00000000
-	;sta $4010
-	
-	lda #0
-	sta irq_counter		;reset counter
-	
 	rti
 ; end of IRQ
 
