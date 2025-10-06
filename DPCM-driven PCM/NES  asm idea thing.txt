@@ -331,6 +331,40 @@ bmi:+
 ;	tay
 ;:
 ;;;
+;; generate wide pulse wave w/ X as index in dmc_state
+;inx
+;lda dmc_state, X
+;sbc #0
+;bne:+
+;	; reset counter
+;	dex
+;	lda dmc_state, X
+;	lsr		; divide by 4 w/o rounding
+;	lsr
+;	ora #$80 ; set up overflow
+;:
+;bvc:+
+;	; reset counter
+;	dex
+;	lda dmc_state, X
+;	lsr		; divide by 4 w/ rounding
+;	lsr
+;	adc #0
+;	sta temp
+;	asl
+;	adc temp
+;:
+;inx
+;sta dmc_state, X
+;; if plus, add volume to output
+;bmi:+
+;	inx
+;	tya
+;	clc
+;	adc dmc_state, X
+;	tay
+;:
+;;;
 ;
 ;;;
 ;; generate pitch slide
@@ -410,7 +444,7 @@ tay
 ;:
 ;; handle sustain after saw
 ;lda saw_counter
-;cmp #$1F			;DCP can be used instead of DEC without CMP, at the cost 1 inaccurate cycle for low notes
+;cmp #$1F
 ;bcc:+
 ;	lda #%00011110
 ;:
@@ -560,6 +594,15 @@ bne:+
 ;		adc dmc_state, X		; C should be clear at the start
 ;		tay
 ;	:
+;;;
+
+
+;;;
+;Sample playback, b/c why not?
+;;;
+;	; generate sample, w/ X as index in dmc_state		; dmc_state -> (divider, counter, volume) x4
+;	;divider and counter are used as the low and high bytes of the memory
+;	;TODO:
 ;;;
 
 ; prepare for output
