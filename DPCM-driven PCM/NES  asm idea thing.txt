@@ -600,9 +600,96 @@ bne:+
 ;;;
 ;Sample playback, b/c why not?
 ;;;
+;	; generate sample
+;	;samples are raw 4-bit, the sound engine must also manually end sample playback by changing waveform
+;	lda play_state
+;	eor #$80
+;	sta play_state
+;	bpl @read_high
+;		ldx #0
+;		lda (sample, X)
+;		and #%00001111
+;		inc sample
+;		bne:+
+;			inc sample+1
+;		:
+;		bne @output volume		;always branch
+;@read_high:
+;		ldx #0
+;		lda (sample, X)
+;		lsr
+;		lsr
+;		lsr
+;		lsr
+;@output_volume:
+;		adc identity_table, y
+;		tay
+;;;
+;;;
 ;	; generate sample, w/ X as index in dmc_state		; dmc_state -> (divider, counter, volume) x4
-;	;divider and counter are used as the low and high bytes of the memory
-;	;TODO:
+;	;divider's 7th bit determines which nibble is read
+;	;counter and volume are used as a pointer for the sample data
+;	;samples are raw 4-bit
+;	;the sound engine must manually end sample playback by changing waveform
+;	lda dmc_state, X
+;	eor #$80
+;	sta dmc_state, X
+;	bpl @read_high
+;		inx
+;		lda (dmc_state, X)
+;		and #%00001111
+;		inc dmc_state, X
+;		bne:+					; the second byte could be left static, forcing a 512 sample loop
+;			inx
+;			inc dmc_state, X
+;		:
+;		bne @output volume		;always branch
+;@read_high:
+;		inx
+;		lda (dmc_state, X)
+;		lsr
+;		lsr
+;		lsr
+;		lsr
+;@output_volume:
+;	adc identity_table, y
+;	tay
+;;;
+;;;
+;	; generate looping sample, w/ X as index in dmc_state		; dmc_state -> (divider, counter, volume) x4
+;	;divider's 7th bit determines which nibble is read
+;	;counter is used as a pointer for the sample data
+;	;volume determines the sample length
+;	;samples are raw 4-bit, stored in a strange order: ABCDEFGH -> GHEFCDAB
+;	lda dmc_state, X
+;	eor #$80
+;	sta dmc_state, X
+;	bpl @read_high
+;		inx
+;		lda dmc_state, X
+;		and #%00001111
+;		adc identity_table, y
+;		tay
+;		inx
+;		lda dmc_state, X
+;		dex
+;		dcp dmc_state, X		;DEC, then CMP (A - mem)
+;		; if pointer is less than loop point
+;		bcs:+
+;			lda #$FF			; reset pointer to sample start
+;			sta dmc_state, X
+;		:
+;		bne @end		;always branch
+;@read_high:
+;		inx
+;		lda (dmc_state, X)
+;		lsr
+;		lsr
+;		lsr
+;		lsr
+;		adc identity_table, y
+;		tay
+;@end:
 ;;;
 
 ; prepare for output
