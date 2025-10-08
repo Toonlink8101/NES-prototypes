@@ -1,0 +1,49 @@
+; This code is at some point called during the IRQ routine, whenever the sound engine is interated
+
+; variables are stored as one multi-byte table using the following layout
+; byte 0:     channel A & B waveform - AAA00BBB
+; byte 1-3:   channel A divider, counter, and volume
+; byte 4-6:   channel B divider, counter, and volume
+; byte 7:     channel C & D waveform - CCC00DDD
+; byte 8-10:  channel C divider, counter, and volume
+; byte 11-13: channel D divider, counter, and volume
+
+; Note: divider, counter and volume are used differently depending on the 
+; waveform selected. The name convention reflects the usage for most waveforms.
+
+; Putting this table in the zeropage does have some speed improvements, 
+; but only by a couple dozen cycles. Might be worth it depending on the usecase
+
+.segment "BSS"
+dmc_state: .res 14	;see above for layout
+
+; identity table is also implied
+
+;jump table
+jump_table_lo:
+	.byte <square
+	.byte <thin_pulse
+	.byte <sawtooth
+	.byte <lfsr
+	.byte <sample_once
+	.byte <sample_loop
+	.byte <wide_pulse
+	.byte <triangle		;???
+
+jump_table_hi:
+	.byte >square
+	.byte >thin_pulse
+	.byte >sawtooth
+	.byte >lfsr
+	.byte >sample_once
+	.byte >sample_loop
+	.byte >wide_pulse
+	.byte >triangle		;???
+
+
+.segment "CODE"
+waveform_select_high:
+	lda dmc_state+0
+	
+	;implement jump table
+	

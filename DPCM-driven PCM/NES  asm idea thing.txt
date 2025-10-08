@@ -488,7 +488,7 @@ tay
 		:
 		sta lfsr
 	:
-	bit lfsr
+	lda lfsr
 	bpl:+
 		tya
 		clc					; CLC is kinda optional here
@@ -627,7 +627,7 @@ bne:+
 ;;;
 ;;;
 ;	; generate sample, w/ X as index in dmc_state		; dmc_state -> (divider, counter, volume) x4
-;	;divider's 7th bit determines which nibble is read
+;	;divider's 7th bit determines which nibble is read; bit must be set at init
 ;	;counter and volume are used as a pointer for the sample data
 ;	;samples are raw 4-bit
 ;	;the sound engine must manually end sample playback by changing waveform
@@ -656,11 +656,11 @@ bne:+
 ;	tay
 ;;;
 ;;;
-;	; generate looping sample, w/ X as index in dmc_state		; dmc_state -> (divider, counter, volume) x4
-;	;divider's 7th bit determines which nibble is read
+;	; generate looping sample				; dmc_state -> (divider, counter, volume) x4
+;	;divider's 7th bit determines which nibble is read; bit must be set at init
 ;	;counter is used as a pointer for the sample data
 ;	;volume determines the sample length
-;	;samples are raw 4-bit, stored in a strange order: ABCDEFGH -> GHEFCDAB
+;	;samples are raw 4-bit, w/ bytes stored in a partial reverse order: 89 AB CD EF -> EF CD AB 89
 ;	lda dmc_state, X
 ;	eor #$80
 ;	sta dmc_state, X
@@ -686,9 +686,80 @@ bne:+
 ;		lsr
 ;		lsr
 ;		lsr
-;		lsr
+;		alr #$FE				; functionally, lsr then clc
 ;		adc identity_table, y
 ;		tay
+;@end:
+;;;
+;;;
+;	; generate looping sample, alt				; dmc_state -> (divider, counter, volume) x4
+;	;divider's 7th bit determines which nibble is read; must be init to 0
+;	;counter is used as a pointer for the sample data
+;	;volume determines the sample length
+;	;samples are raw 4-bit, w/ data read (and thus stored) in reverse order: 89 AB CD EF -> FE DC BA 98
+;	lda dmc_state, X
+;	eor #$80
+;	sta dmc_state, X
+;	bpl @read_high
+;		inx
+;		lda dmc_state, X
+;		and #%00001111
+;		adc identity_table, y		; C should be clear
+;		tay
+;		bcc @end		;always branch
+;@read_high:
+;		inx
+;		lda (dmc_state, X)
+;		lsr
+;		lsr
+;		lsr
+;		alr #$FE				; functionally, lsr then clc
+;		adc identity_table, y
+;		tay
+;		inx
+;		lda dmc_state, X
+;		dex
+;		dcp dmc_state, X		;DEC, then CMP (A - mem)
+;		; if pointer is less than loop point
+;		bcs:+
+;			lda #$FF			; reset pointer to sample start
+;			sta dmc_state, X
+;		:
+;@end:
+;;;
+;;;
+;	; generate unlooped sample, alt				; dmc_state -> (divider, counter, volume) x4
+;	;divider's 7th bit determines which nibble is read; must be init to 0
+;	;counter is used as a pointer for the sample data
+;	;volume determines the sample length, w/ last 2 nibbles looped until channel reset
+;	;samples are raw 4-bit, w/ data read (and thus stored) in reverse order: 89 AB CD EF -> FE DC BA 98
+;	lda dmc_state, X
+;	eor #$80
+;	sta dmc_state, X
+;	bpl @read_high
+;		inx
+;		lda dmc_state, X
+;		and #%00001111
+;		adc identity_table, y		; C should be clear
+;		tay
+;		bcc @end		;always branch
+;@read_high:
+;		inx
+;		lda (dmc_state, X)
+;		lsr
+;		lsr
+;		lsr
+;		alr #$FE				; functionally, lsr then clc
+;		adc identity_table, y
+;		tay
+;		inx
+;		lda dmc_state, X
+;		dex
+;		dcp dmc_state, X		;DEC, then CMP (A - mem)
+;		; if pointer is less than loop point
+;		bcs:+
+;			inc dmc_state, X	; loop last two nibbles
+;		:
 ;@end:
 ;;;
 

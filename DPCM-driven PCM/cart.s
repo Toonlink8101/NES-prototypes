@@ -297,7 +297,7 @@ Calculate_next_DMC_offset:
 		:
 		sta lfsr
 	:
-	bit lfsr
+	lda lfsr
 	bpl:+
 		tya
 		clc					
