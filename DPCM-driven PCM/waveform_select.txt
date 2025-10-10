@@ -1,49 +1,251 @@
 ; This code is at some point called during the IRQ routine, whenever the sound engine is interated
 
 ; variables are stored as one multi-byte table using the following layout
-; byte 0:     channel A & B waveform - AAA00BBB
-; byte 1-3:   channel A divider, counter, and volume
-; byte 4-6:   channel B divider, counter, and volume
-; byte 7:     channel C & D waveform - CCC00DDD
-; byte 8-10:  channel C divider, counter, and volume
-; byte 11-13: channel D divider, counter, and volume
+; byte 0:     channel A & B waveform - 00AAABBB
+; byte 1-3:   channel A state (divider, counter, and volume)
+; byte 4-6:   channel B state (divider, counter, and volume)
+; byte 7:     channel C & D waveform - 00CCCDDD
+; byte 8-10:  channel C state (divider, counter, and volume)
+; byte 11-13: channel D state (divider, counter, and volume)
 
 ; Note: divider, counter and volume are used differently depending on the 
 ; waveform selected. The name convention reflects the usage for most waveforms.
 
 ; Putting this table in the zeropage does have some speed improvements, 
-; but only by a couple dozen cycles. Might be worth it depending on the usecase
+; but only by a couple dozen cycles. In my case, however, it would likely be worth it
 
 .segment "BSS"
 dmc_state: .res 14	;see above for layout
 
 ; identity table is also implied
 
-;jump table
+;jump table			;This should probably ordered from least to most costly
 jump_table_lo:
-	.byte <square
-	.byte <thin_pulse
-	.byte <sawtooth
-	.byte <lfsr
-	.byte <sample_once
-	.byte <sample_loop
-	.byte <wide_pulse
-	.byte <triangle		;???
+	.byte <thin_pulse-1
+	.byte <square-1
+	.byte <sawtooth-1
+	.byte <lfsr-1
+	.byte <sample_once-1
+	.byte <sample_loop-1
+	.byte <wide_pulse-1
+	.byte <triangle-1		;???
 
 jump_table_hi:
-	.byte >square
-	.byte >thin_pulse
-	.byte >sawtooth
-	.byte >lfsr
-	.byte >sample_once
-	.byte >sample_loop
-	.byte >wide_pulse
-	.byte >triangle		;???
+	.byte >thin_pulse-1
+	.byte >square-1
+	.byte >sawtooth-1
+	.byte >lfsr-1
+	.byte >sample_once-1
+	.byte >sample_loop-1
+	.byte >wide_pulse-1
+	.byte >triangle-1		;???
 
 
 .segment "CODE"
-waveform_select_high:
+; Jumps to wavetable subroutine in X, with channel state offet in A
+; 20 cycles
+wavetable_jump:
+	;push channel offset to stack
+	pha
+	;push subroutine address from table to stack
+	lda jump_table_lo,x
+	pha
+	lda jump_table_hi,x
+	pha
+	;pull return address from stack
+	rts
+
+
+.segment "CODE"
+Iterate_all_channels:
+;78 cycles w/o subroutines
+;78+80+40+(~32*4)=198+~128= ~326 cycles (~2.9 lines)
+
+; rough for 3 channels
+; 198*(3/4)+(~32*3)= 149+96= 245 cycles (~2.2 lines)
+
+;Iterate A
+	;get waveform state
 	lda dmc_state+0
+	lsr
+	lsr
+	alr#%00001110		;and #i, then lsr
+	;put in X
+	tax
+	;put channel state offset in A
+	lda#1
+	;jsr to wavetable_jump
+	jsr wavetable_jump
+;Iterate B
+	;get waveform state
+	lda dmc_state+0
+	and#%00000111
+	;put in X
+	tax
+	;put channel state offset in A
+	lda#4
+	;jsr to wavetable_jump
+	jsr wavetable_jump
+;Iterate C
+	;get waveform state
+	lda dmc_state+7
+	lsr
+	lsr
+	alr#%00001110		;and #i, then lsr
+	;put in X
+	tax
+	;put channel state offset in A
+	lda#8
+	;jsr to wavetable_jump
+	jsr wavetable_jump
+;Iterate D
+	;get waveform state
+	lda dmc_state+7
+	and#%00000111
+	;put in X
+	tax
+	;put channel state offset in A
+	lda#11
+	;jsr to wavetable_jump
+	jsr wavetable_jump
+	rts
+
+
+.segment "CODE"
+thin_pulse:
+	; pull index from stack
+	pla
+	tax
+; Generate thin pulse w/ dmc_state		; dmc_state -> (divider, counter, volume)
+; 16 - 32 cycles
+; if zp, 1-2 cycles are saved
+	lda dmc_state, X	; load divider for reset
+	inx
+	dec	dmc_state, X
+	bne:+
+		; reset counter
+		sta dmc_state, X
+
+		; add volume to output
+		inx
+		tya
+		adc dmc_state, X		; C should be clear at the start
+		tay
+	:
+	rts
+
 	
-	;implement jump table
+lfsr:
+	; pull index from stack
+	pla
+	tax
+; Generate noise (galois lfsr) w/o pitch and w/ dmc_state
+; 16 - 30 cycles
+	lda dmc_state, X
+	inx
+	sre dmc_state, X		;LSR lfsr, then EOR it with A, saving 4 cycles
+	bcc:+
+		sta dmc_state, X
+		inx
+		tya
+		adc dmc_state, X	;carry already clear
+		tay
+	:
+	rts
+
 	
+sawtooth:
+	; pull index from stack
+	pla
+	tax
+; Generate sawtooth, w/ X as index in dmc_state
+; 30 - 34 cycles
+	lda dmc_state, X
+	inx
+	dec dmc_state, X
+	bne:+
+		sta dmc_state, X
+	:
+	lda dmc_state, X
+	alr#%00111100			; and #i, then lsr
+	lsr						; carry clear
+	adc identity_table, y	; could be "adc Y" macro
+	tay
+	rts
+
+
+square:
+	; pull index from stack
+	pla
+	tax
+; Generate Square Wave, w/ dmc_state			; dmc_state -> (divider, counter, volume) x4
+; 22 - 42 cycles
+	inx
+	lda dmc_state, X
+	sbc #0				;same as DEC A, since C should be clear at the start
+	bne:+
+		; reset counter
+		dex
+		lda dmc_state, X
+		alr #$FE	;lsr then clc
+		ora #$80 ; set up overflow
+		inx
+	:
+	bvc:+
+		; reset counter
+		dex
+		lda dmc_state, X
+		lsr
+		adc #0	; handle odd lengths
+		inx
+	:
+	sta dmc_state, X
+	; if plus, add volume to output
+	bmi:+
+		inx
+		tya
+		adc dmc_state, X
+		tay
+	:
+	rts
+
+	
+wide_pulse:
+	; pull index from stack
+	pla
+	tax
+; Generate wide pulse w/ dmc_state
+; 22 - 55 cycles
+	inx
+	lda dmc_state, X
+	sbc #0
+	bne:+
+		; reset counter
+		dex
+		lda dmc_state, X
+		lsr		; divide by 4 w/o rounding
+		alr #FE		; lsr, then clc
+		ora #$80	; set up overflow
+		inx
+	:
+	bvc:+
+		; reset counter
+		dex
+		lda dmc_state, X
+		lsr		; divide by 4 w/ rounding
+		lsr
+		adc #0
+		sta irq_temp	;mult by 3
+		asl
+		adc irq_temp
+		inx
+	:
+	sta dmc_state, X
+	; if plus, add volume to output
+	bmi:+
+		inx
+		tya
+		adc dmc_state, X
+		tay
+	:
+	rts
