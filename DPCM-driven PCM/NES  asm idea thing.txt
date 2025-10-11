@@ -541,6 +541,7 @@ tay
 ;;;
 
 	; generate noise
+	; 49
 	dec noise_counter
 	bne:++
 		; reset counter
@@ -573,6 +574,31 @@ tay
 	; If the divider is removed, simplifying the code, this would be a good
 	; way to add back control with minimal effeciency loss.
 
+;;;
+;	; generate noise, alt
+;	; 17,24 - 46,52 w/ indexing
+;	; 16,23 - 43,48 w/ all absolute
+;	; 14,20 - 34,40 w/ all zeropage
+;	dec noise_counter			;(5,6,7)
+;	bne:++						;(2 or 3)
+;		; reset counter
+;		lda noise_divider		;(3,4,4)
+;		sta noise_counter		;(3,4,5)
+;		; galois lfsr
+;		lda lfsr_tap			;(3,4,4)
+;		sre lfsr				;(5,6,7)			;lsr var, then eor var
+;		bcc:+					;(2 or 3)
+;			sta lfsr			;(3,4,5)
+;			clc					;(2)
+;		:
+;	:
+;	lda lfsr					;(3,4,4)
+;	bpl:+						;(2 or 3)
+;		tya						;(2)
+;		adc noise_volume		;(3,4,4)
+;		tay						;(2)
+;	:
+;;;
 ;;;
 ;	;generate noise w/o pitch
 ;	;galois lfsr

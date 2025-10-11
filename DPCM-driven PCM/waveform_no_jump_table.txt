@@ -1,0 +1,550 @@
+; This code is at some point called during the IRQ routine, whenever the sound engine is interated
+; Compared to the other waveform selection code, this one avoids using a jump table,
+; with the idea being to speed things up at the cost of modularity and size
+
+; this method takes roughly 268 cycles at a reasonably worst case (~2.4 lines)
+; at a more average case (worst of thin pulse), it takes 176 cycles (~1.5 lines)
+
+; variables are stored as one multi-byte table using the following layout
+; byte 0:     channel A waveform - AA000000
+; byte 1-3:   channel A state (divider, counter, and volume)
+; byte 4:     channel B waveform - BB000000
+; byte 5-7:   channel B state (divider, counter, and volume)
+; byte 8:     channel C waveform - CC000000
+; byte 9-11:  channel C state (divider, counter, and volume)
+; byte 12:    channel D waveform - DD000000
+; byte 13-15: channel D state (divider, counter, and volume)
+
+; Note: divider, counter and volume are used differently depending on the 
+; waveform selected. The name convention reflects the usage for most waveforms.
+
+; waveform selection is as follows:
+; 00 - thin pulse
+; 01 - special	(depends on channel)
+; 10 - square wave
+; 11 - wide pulse
+
+; special waveforms are as follows:
+; A - sawtooth
+; B - lfsr
+; C - sample (endless, must be stopped manually)
+; D - looping sample
+
+; Putting this table in the zeropage does have some speed improvements, 
+; but only by a couple dozen cycles. In my case, however, it would likely be worth it
+
+.segment "BSS"
+dmc_state: .res 16	;see above for layout
+
+; identity table is also implied
+
+.segment "CODE"
+Iterate_all_channels:
+;Iterate A
+	;load channel offset
+	ldx 1
+	;BIT state
+	bit dmc_state+0
+	;branch to desired waveform
+	bmi widerA		;1x
+	bvs specA		;01
+	;thin pulse		;00
+; Generate thin pulse w/ dmc_state		; dmc_state -> (divider, counter, volume)
+; 16 - 32 cycles
+; if zp, 1-2 cycles are saved
+	lda dmc_state, X	; load divider for reset
+	inx
+	dec	dmc_state, X
+	bne:+
+		; reset counter
+		sta dmc_state, X
+
+		; add volume to output
+		inx
+		tya
+		adc dmc_state, X		; C should be clear at the start
+		tay
+	:
+	jmp updateB
+
+specA:
+; Generate sawtooth, w/ X as index in dmc_state
+; 30 - 34 cycles
+	lda dmc_state, X
+	inx
+	dec dmc_state, X
+	bne:+
+		sta dmc_state, X
+	:
+	lda dmc_state, X
+	alr#%00111100			; and #i, then lsr
+	lsr						; carry clear
+	adc identity_table, y	; could be "adc Y" macro
+	tay
+	jump updateB
+
+
+widerA:
+	bvs wide_pulseA		;11
+	;square				;10
+
+; Generate Square Wave, w/ dmc_state			; dmc_state -> (divider, counter, volume) x4
+; 22 - 42 cycles
+	inx
+	lda dmc_state, X
+	sbc #0				;same as DEC A, since C should be clear at the start
+	bne:+
+		; reset counter
+		dex
+		lda dmc_state, X
+		alr #$FE	;lsr then clc
+		ora #$80 ; set up overflow
+		inx
+	:
+	bvc:+
+		; reset counter
+		dex
+		lda dmc_state, X
+		lsr
+		adc #0	; handle odd lengths
+		inx
+	:
+	sta dmc_state, X
+	; if plus, add volume to output
+	bmi:+
+		inx
+		tya
+		adc dmc_state, X
+		tay
+	:
+	jmp updateB		;always branch
+	
+wide_pulseA:
+; Generate wide pulse w/ dmc_state
+; 22 - 55 cycles
+	inx
+	lda dmc_state, X
+	sbc #0
+	bne:+
+		; reset counter
+		dex
+		lda dmc_state, X
+		lsr		; divide by 4 w/o rounding
+		alr #FE		; lsr, then clc
+		ora #$80	; set up overflow
+		inx
+	:
+	bvc:+
+		; reset counter
+		dex
+		lda dmc_state, X
+		lsr		; divide by 4 w/ rounding
+		lsr
+		adc #0
+		sta irq_temp	;mult by 3
+		asl
+		adc irq_temp
+f		inx
+	:
+	sta dmc_state, X
+	; if plus, add volume to output
+	bmi:+
+		inx
+		tya
+		adc dmc_state, X
+		tay
+	:
+	;fall through
+	
+updateB:
+;Iterate B
+	;load channel offset
+	ldx 5
+	;BIT state
+	bit dmc_state+4
+	;branch to desired waveform
+	bmi widerB		;1x
+	bvs specB		;01
+	;thin pulse		;00
+; Generate thin pulse w/ dmc_state		; dmc_state -> (divider, counter, volume)
+; 16 - 32 cycles
+; if zp, 1-2 cycles are saved
+	lda dmc_state, X	; load divider for reset
+	inx
+	dec	dmc_state, X
+	bne:+
+		; reset counter
+		sta dmc_state, X
+
+		; add volume to output
+		inx
+		tya
+		adc dmc_state, X		; C should be clear at the start
+		tay
+	:
+	jmp updateC
+
+specB:
+; Generate noise (galois lfsr) w/o pitch and w/ dmc_state
+; 16 - 30 cycles
+	lda dmc_state, X
+	inx
+	sre dmc_state, X		;LSR lfsr, then EOR it with A, saving 4 cycles
+	bcc:+
+		sta dmc_state, X
+		inx
+		tya
+		adc dmc_state, X	;carry already clear
+		tay
+	:
+	jmp updateC
+
+
+widerB:
+	bvs wide_pulseB		;11
+	;square				;10
+
+; Generate Square Wave, w/ dmc_state			; dmc_state -> (divider, counter, volume) x4
+; 22 - 42 cycles
+	inx
+	lda dmc_state, X
+	sbc #0				;same as DEC A, since C should be clear at the start
+	bne:+
+		; reset counter
+		dex
+		lda dmc_state, X
+		alr #$FE	;lsr then clc
+		ora #$80 ; set up overflow
+		inx
+	:
+	bvc:+
+		; reset counter
+		dex
+		lda dmc_state, X
+		lsr
+		adc #0	; handle odd lengths
+		inx
+	:
+	sta dmc_state, X
+	; if plus, add volume to output
+	bmi:+
+		inx
+		tya
+		adc dmc_state, X
+		tay
+	:
+	jmp updateC		;always branch
+	
+wide_pulseB:
+; Generate wide pulse w/ dmc_state
+; 22 - 55 cycles
+	inx
+	lda dmc_state, X
+	sbc #0
+	bne:+
+		; reset counter
+		dex
+		lda dmc_state, X
+		lsr		; divide by 4 w/o rounding
+		alr #FE		; lsr, then clc
+		ora #$80	; set up overflow
+		inx
+	:
+	bvc:+
+		; reset counter
+		dex
+		lda dmc_state, X
+		lsr		; divide by 4 w/ rounding
+		lsr
+		adc #0
+		sta irq_temp	;mult by 3
+		asl
+		adc irq_temp
+		inx
+	:
+	sta dmc_state, X
+	; if plus, add volume to output
+	bmi:+
+		inx
+		tya
+		adc dmc_state, X
+		tay
+	:
+	;fall through
+	
+updateC:
+;Iterate C
+	;load channel offset
+	ldx 9
+	;BIT state
+	bit dmc_state+8
+	;branch to desired waveform
+	bmi widerC		;1x
+	bvs specC		;01
+	;thin pulse		;00
+; Generate thin pulse w/ dmc_state		; dmc_state -> (divider, counter, volume)
+; 16 - 32 cycles
+; if zp, 1-2 cycles are saved
+	lda dmc_state, X	; load divider for reset
+	inx
+	dec	dmc_state, X
+	bne:+
+		; reset counter
+		sta dmc_state, X
+
+		; add volume to output
+		inx
+		tya
+		adc dmc_state, X		; C should be clear at the start
+		tay
+	:
+	jmp updateD
+
+specC:
+	; generate sample, w/ X as index in dmc_state		; dmc_state -> (divider, counter, volume) x4
+	;divider's 7th bit determines which nibble is read; bit must be set at init
+	;counter and volume are used as a pointer for the sample data
+	;samples are raw 4-bit
+	;the sound engine must manually end sample playback by changing waveform
+	; 36 - 50 cycles
+	lda dmc_state, X
+	eor #$80
+	sta dmc_state, X
+	bpl:++
+		inx
+		lda (dmc_state, X)
+		and #%00001111
+		inc dmc_state, X
+		bne:+					; the second byte could be left static, forcing a 512 sample loop
+			inx
+			inc dmc_state, X
+		:
+		bne:++		;always branch
+	:
+	;read_high
+		inx
+		lda (dmc_state, X)
+		lsr
+		lsr
+		lsr
+		lsr
+	:
+;output
+	adc identity_table, y
+	tay
+	
+	jmp updateD
+
+widerC:
+	bvs wide_pulseC		;11
+	;square				;10
+
+; Generate Square Wave, w/ dmc_state			; dmc_state -> (divider, counter, volume) x4
+; 22 - 42 cycles
+	inx
+	lda dmc_state, X
+	sbc #0				;same as DEC A, since C should be clear at the start
+	bne:+
+		; reset counter
+		dex
+		lda dmc_state, X
+		alr #$FE	;lsr then clc
+		ora #$80 ; set up overflow
+		inx
+	:
+	bvc:+
+		; reset counter
+		dex
+		lda dmc_state, X
+		lsr
+		adc #0	; handle odd lengths
+		inx
+	:
+	sta dmc_state, X
+	; if plus, add volume to output
+	bmi:+
+		inx
+		tya
+		adc dmc_state, X
+		tay
+	:
+	jmp updateD		;always branch
+	
+wide_pulseC:
+; Generate wide pulse w/ dmc_state
+; 22 - 55 cycles
+	inx
+	lda dmc_state, X
+	sbc #0
+	bne:+
+		; reset counter
+		dex
+		lda dmc_state, X
+		lsr		; divide by 4 w/o rounding
+		alr #FE		; lsr, then clc
+		ora #$80	; set up overflow
+		inx
+	:
+	bvc:+
+		; reset counter
+		dex
+		lda dmc_state, X
+		lsr		; divide by 4 w/ rounding
+		lsr
+		adc #0
+		sta irq_temp	;mult by 3
+		asl
+		adc irq_temp
+		inx
+	:
+	sta dmc_state, X
+	; if plus, add volume to output
+	bmi:+
+		inx
+		tya
+		adc dmc_state, X
+		tay
+	:
+	;fall through
+	
+updateD:
+;Iterate D
+	;load channel offset
+	ldx 13
+	;BIT state
+	bit dmc_state+12
+	;branch to desired waveform
+	bmi widerD		;1x
+	bvs specD		;01
+	;thin pulse		;00
+; Generate thin pulse w/ dmc_state		; dmc_state -> (divider, counter, volume)
+; 16 - 32 cycles
+; if zp, 1-2 cycles are saved
+	lda dmc_state, X	; load divider for reset
+	inx
+	dec	dmc_state, X
+	bne:+
+		; reset counter
+		sta dmc_state, X
+
+		; add volume to output
+		inx
+		tya
+		adc dmc_state, X		; C should be clear at the start
+		tay
+	:
+	jmp @end
+
+specD:
+	; generate looping sample				; dmc_state -> (divider, counter, volume) x4
+	;divider's 7th bit determines which nibble is read; bit must be set at init
+	;counter is used as a pointer for the sample data
+	;volume determines the sample length
+	;samples are raw 4-bit, w/ bytes stored in a partial reverse order: 89 AB CD EF -> EF CD AB 89
+	; 36 - 50 (56 on loop) cycles
+	lda dmc_state, X
+	eor #$80
+	sta dmc_state, X
+	bpl:++	;read_high
+		inx
+		lda (dmc_state, X)
+		and #%00001111
+		adc identity_table, y
+		tay
+		inx
+		lda dmc_state, X
+		dex
+		dcp dmc_state, X		;DEC, then CMP (A - mem)
+		; if pointer is less than loop point
+		bcs:+
+			lda #$FF			; reset pointer to sample start
+			sta dmc_state, X
+		:
+		bne:++		;always branch
+	:  ;read_high
+		inx
+		lda (dmc_state, X)
+		lsr
+		lsr
+		lsr
+		alr #$FE				; functionally, lsr then clc
+		adc identity_table, y
+		tay
+	:
+	jmp @end
+
+
+widerD:
+	bvs wide_pulseD		;11
+	;square				;10
+
+; Generate Square Wave, w/ dmc_state			; dmc_state -> (divider, counter, volume) x4
+; 22 - 42 cycles
+	inx
+	lda dmc_state, X
+	sbc #0				;same as DEC A, since C should be clear at the start
+	bne:+
+		; reset counter
+		dex
+		lda dmc_state, X
+		alr #$FE	;lsr then clc
+		ora #$80 ; set up overflow
+		inx
+	:
+	bvc:+
+		; reset counter
+		dex
+		lda dmc_state, X
+		lsr
+		adc #0	; handle odd lengths
+		inx
+	:
+	sta dmc_state, X
+	; if plus, add volume to output
+	bmi:+
+		inx
+		tya
+		adc dmc_state, X
+		tay
+	:
+	jmp @end
+	
+wide_pulseD:
+; Generate wide pulse w/ dmc_state
+; 22 - 55 cycles
+	inx
+	lda dmc_state, X
+	sbc #0
+	bne:+
+		; reset counter
+		dex
+		lda dmc_state, X
+		lsr		; divide by 4 w/o rounding
+		alr #FE		; lsr, then clc
+		ora #$80	; set up overflow
+		inx
+	:
+	bvc:+
+		; reset counter
+		dex
+		lda dmc_state, X
+		lsr		; divide by 4 w/ rounding
+		lsr
+		adc #0
+		sta irq_temp	;mult by 3
+		asl
+		adc irq_temp
+		inx
+	:
+	sta dmc_state, X
+	; if plus, add volume to output
+	bmi:+
+		inx
+		tya
+		adc dmc_state, X
+		tay
+	:
+	;fall through
+
+@end:
+	rts 	; potentially removable
