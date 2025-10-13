@@ -1,0 +1,80 @@
+; This code is at some point called during the IRQ routine, whenever the sound engine is interated
+
+; This version cuts down the waveform count to two: thin pulse and lfsr
+; Since lfsr can create many different waveforms already, even square and some pulse waves, 
+; it makes sense to use only that one, especially since selecting between so many waveforms
+; take a long time if done modularly, and most calculations simply take to long otherwise.
+; A sawtooth waveform might still fit, assuming either one channel losses it's thin-pulse
+; or more cycles are spent selecting a waveform
+
+; Variables are all stored in a sort of structure, repeating for each channel
+;	wave_select - bit 7 only - either lfsr or needle pulse
+;	divider - divides IRQ "clock" into desired frequency
+;	counter - decremented each IRQ, is reset to divider at zero
+;	lfsr - the current state of the channel's lfsr
+;	lfsr_tap - the value XOR'd to the lfsr when needed
+;	volume - the channel's maximum output
+; For speed, all variables are stored on the zeropage
+
+.segment "ZEROPAGE"
+wave_select: .res 4
+divider: .res 4
+counter: .res 4
+lfsr: .res 4
+lfsr_tap: .res 4
+volume: .res 4
+
+.segment "CODE"
+
+Iterate_all_channels:
+clc
+
+channel .set 0
+.repeat 4
+
+	bit wave_select+channel
+	bmi Gen_lfsr
+
+	; Generate thin pulse
+		dec counter+channel
+		bne:+
+			; reset counter
+			lda divider+channel
+			sta counter+channel
+
+			; add volume to output
+			tya
+			adc volume+channel
+			tay		; maybe skip to output instead?
+					; no need to shift Y around again
+		:
+
+	bcc @end		; Always branch
+
+	Gen_lfsr:
+	; Generate lfsr
+	; 14,20 - 34,40 w/ all zeropage
+		dec counter+channel
+		bne:++
+			; reset counter
+			lda divider+channel
+			sta counter+channel
+			; galois lfsr
+			lda lfsr_tap+channel
+			sre lfsr+channel			;lsr var, then eor var
+			bcc:+
+				sta lfsr+channel
+				clc
+			:
+		:
+		lda lfsr+channel
+		bpl:+
+			tya
+			adc volume+channel
+			tay
+		:
+
+	@end:
+
+channel .set channel+1
+.endrep
