@@ -1,0 +1,316 @@
+; Various waveform routines
+
+; most assume that Y holds the running volume output
+; an identity table is also assumed
+
+; The maximum # of cycles for one waveform shouldn't exceed 42. However, 40 or less is ideal
+
+; Possible optimizations:
+; - skip "adc identity_table, y" when y=0 (first channel)
+; - skip "tya" when y=0 (first channel)
+; - skip "tay" when last channel (accumulator pushed to $4011 anyway)
+
+
+;;;;;;;
+;Pulse
+;;;;;;;
+
+; Generate Pulse Wave, optimized w/ noise vars (divider, counter, volume, lfsr, lfsr_tap)
+	; lfsr stores state as a shift register. lfsr_tap holds high divider.
+	; 14,20 - 31,34 cycles (assumes zeropage)
+		dec counter
+		bne:++
+			;update state
+			asl lfsr
+			;if state was low
+			bcc:+
+				lda divider
+				bcc @reset_end
+			:
+			;if state was high
+				clc
+				inc lfsr
+				lda lfsr_tap
+		@reset_end:
+			sta counter
+		:
+		bit lfsr
+		; if plus, add volume to output
+		bmi:+
+			tya
+			adc volume
+			tay
+		:
+
+
+;;;;;;;;
+;Linear (Sawtooth/Triangle)
+;;;;;;;;
+
+; Generate sawtooth, optimized
+	; has no volume control. Instead, volume varies by pitch
+	; 21 - 23 (assumes zeropage)
+	lda counter
+	sbc #0		;since C is clear
+	bne:+
+		lda divider
+	:
+	sta counter
+	alr #%00111100
+	lsr						; carry clear
+	adc identity_table, y	; could be "adc Y" macro
+	tay
+
+
+; Generate half sawtooth, optimized
+	; has no volume control. Instead, volume varies by pitch
+	; 24 - 27 (assumes zeropage)
+	lda counter
+	sbc #0		;since C is clear
+	bne:+
+		lda divider
+	:
+	sta counter
+	cmp #$1F
+	bcc:+
+		lda #%00011110
+	:
+	alr#%00011110			; carry clear (unofficial opcode)
+	adc identity_table, y	; could be "adc Y" macro
+	tay
+
+; Generate sawtooth w/ slope control
+	; volume controls slope angle
+	; period = divider / volume, rounding up
+	; 25 - 26 cycles (assumes zeropage)
+	lda counter
+	adc volume
+	cmp divider
+	bcc:+
+		lda #0
+	:
+	sta counter
+	alr #%00111100
+	lsr
+	adc identity_table, y
+	tay
+
+
+; Generate Triangle
+	; period is roughly twice divider
+	; 28 - 32 (assumes zeropage)
+	lda volume
+	adc counter
+	sta counter
+	bne:+
+		ldx #1
+		stx volume
+	:
+	cmp divider
+	bcc:+
+		ldx #-1
+		stx volume
+	:
+	alr #%00111100
+	lsr
+	adc identity_table, y
+	tay
+	
+; Generate Triangle w/ slope control
+	; lfsr hold rising value, while lfsr_tap holds falling value. They must be positive and negative, respectively
+	; period ~=~ ciel(divider / lfsr) + ciel(divider / lfsr_tap)
+	; setting lfsr == divider and lfsr_tap == -1 results in a sawtooth
+	; 28 - 33,35 (assumes zeropage)
+	lda volume
+	adc counter
+	bvc:+
+		ldx lfsr
+		stx volume
+		lda #0
+	:
+	sta counter
+	cmp divider
+	bcc:+
+		ldx lfsr_tap
+		stx volume
+	:
+	alr #%00111100
+	lsr
+	adc identity_table, y
+	tay
+
+
+;;;;;;;;
+;LFSR
+;;;;;;;;
+
+; Generate lfsr
+	; 14,20 - 34,40 w/ all zeropage
+		dec counter+channel
+		bne:++
+			; reset counter
+			lda divider+channel
+			sta counter+channel
+			; galois lfsr
+			lda lfsr_tap+channel
+			sre lfsr+channel			;lsr var, then eor var
+			bcc:+
+				sta lfsr+channel
+				clc
+			:
+		:
+		lda lfsr+channel
+		bpl:+
+			tya
+			adc volume+channel
+			tay
+		:
+
+;;;;;;;;
+;Samples
+;;;;;;;;
+
+; Note!!!
+; The following routines rely on two channel variables being sequential in memory
+; Please set up channel variable selection accordingly
+
+; Generate endless sample
+	;samples are raw 4-bit, the sound engine must also manually end sample playback by changing waveform
+	; three bytes of variables: play_state, sample_ptr, and sample_ptr+1
+	; 33 - 37 (41 w/ page cross) (assuming zeropage)
+	lda play_state
+	eor #$80
+	sta play_state
+	bpl @read_high
+		ldx #0
+		lda (sample_ptr, X)
+		and #%00001111
+		inc sample_ptr
+		bne:+
+			inc sample_ptr+1
+		:
+		bne @output_volume		;always branch
+@read_high:
+		ldx #0
+		lda (sample_ptr, X)
+		lsr
+		lsr
+		lsr
+		lsr
+@output_volume:
+		adc identity_table, y
+		tay
+		
+; Generate looping sample, optimized even more
+	;samples are raw 4-bit, w/ bytes stored in a partial reverse order: 89 AB CD EF >-outputs-> EF CD AB 89
+	;sample length is always an even number, since loop logic is only run after reading every second sample
+	; four bytes of variables: play_state, loop_point, sample_ptr, and sample_ptr+1
+	; 35 - 38 (42 on loop) cycles (assuming zeropage)
+	ldx #0
+	lda play_state
+	eor #$80
+	sta play_state
+	bpl @read_low
+		lda (sample_ptr, X)
+		lsr
+		lsr
+		lsr
+		alr #$FE				; functionally, lsr then clc
+		adc identity_table, y
+		tay
+		bcc @end		;always branch
+@read_low:
+		lda (sample_ptr, X)
+		and #%00001111
+		adc identity_table, y
+		tay
+		lda loop_point
+		dcp sample_ptr		;DEC, then CMP (A - mem)
+		; if pointer is less than loop point
+		bcs:+
+			lda #$FF			; reset pointer to sample start
+			sta sample_ptr
+		:
+@end:
+
+; Generate looping sample, optimized for Y = 0 (first channel only!)
+	;samples are raw 4-bit, w/ bytes stored in a partial reverse order: 89 AB CD EF >-outputs-> EF CD AB 89
+	;sample length is always an even number, since loop logic is only run after reading every second sample
+	; four bytes of variables: play_state, loop_point, sample_ptr, and sample_ptr+1
+	; 31 - 34 (38 on loop) cycles (assuming zeropage)
+	ldx #0
+	lda play_state
+	eor #$80
+	sta play_state
+	bpl @read_low
+		lda (sample_ptr, X)
+		lsr
+		lsr
+		lsr
+		alr #$FE				; functionally, lsr then clc
+		; no adc, since Y is assumed 0
+		tay
+		bcc @end		;always branch
+@read_low:
+		lda (sample_ptr, X)
+		and #%00001111
+		; no adc, since Y is assumed 0
+		tay
+		lda loop_point
+		dcp sample_ptr		;DEC, then CMP (A - mem)
+		; if pointer is less than loop point
+		bcs:+
+			lda #$FF			; reset pointer to sample start
+			sta sample_ptr
+		:
+@end:
+
+;Note!!!
+; The following routines additionally require a table to precalculate a division by 16 (4 right shifts)
+shift_right_by_four:
+    .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+    .byte $01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01
+    .byte $02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02
+    .byte $03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03
+    .byte $04,$04,$04,$04,$04,$04,$04,$04,$04,$04,$04,$04,$04,$04,$04,$04
+    .byte $05,$05,$05,$05,$05,$05,$05,$05,$05,$05,$05,$05,$05,$05,$05,$05
+	.byte $06,$06,$06,$06,$06,$06,$06,$06,$06,$06,$06,$06,$06,$06,$06,$06
+	.byte $07,$07,$07,$07,$07,$07,$07,$07,$07,$07,$07,$07,$07,$07,$07,$07
+	.byte $08,$08,$08,$08,$08,$08,$08,$08,$08,$08,$08,$08,$08,$08,$08,$08
+	.byte $09,$09,$09,$09,$09,$09,$09,$09,$09,$09,$09,$09,$09,$09,$09,$09
+	.byte $0A,$0A,$0A,$0A,$0A,$0A,$0A,$0A,$0A,$0A,$0A,$0A,$0A,$0A,$0A,$0A
+	.byte $0B,$0B,$0B,$0B,$0B,$0B,$0B,$0B,$0B,$0B,$0B,$0B,$0B,$0B,$0B,$0B
+	.byte $0C,$0C,$0C,$0C,$0C,$0C,$0C,$0C,$0C,$0C,$0C,$0C,$0C,$0C,$0C,$0C
+	.byte $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D
+	.byte $0E,$0E,$0E,$0E,$0E,$0E,$0E,$0E,$0E,$0E,$0E,$0E,$0E,$0E,$0E,$0E
+	.byte $0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F
+
+; Generate looping sample, optimized even more... but poorly :(
+	;samples are raw 4-bit, w/ bytes stored in a partial reverse order: 89 AB CD EF >-outputs-> EF CD AB 89
+	;sample length is always an even number, since loop logic is only run after reading every second sample
+	; four bytes of variables: play_state, loop_point, sample_ptr, and sample_ptr+1
+	; 33 - 38 (42 on loop) cycles (assuming zeropage)
+	ldx #0
+	lda play_state
+	eor #$80
+	sta play_state
+	bpl @read_low
+		lda (sample_ptr, X)
+		tax
+		lda shift_right_by_four, X
+		adc identity_table, y
+		tay
+		bcc @end		;always branch
+@read_low:
+		lda (sample_ptr, X)
+		and #%00001111
+		adc identity_table, y
+		tay
+		lda loop_point
+		dcp sample_ptr		;DEC, then CMP (A - mem)
+		; if pointer is less than loop point
+		bcs:+
+			lda #$FF			; reset pointer to sample start
+			sta sample_ptr
+		:
+@end:
