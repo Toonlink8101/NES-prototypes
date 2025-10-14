@@ -1,6 +1,6 @@
 ; This code is at some point called during the IRQ routine, whenever the sound engine is interated
 
-; This version cuts down the waveform count to two: thin pulse and lfsr
+; This version cuts down the waveform count to two: pulse and lfsr
 ; Since lfsr can create many different waveforms already, even square and some pulse waves, 
 ; it makes sense to use only that one, especially since selecting between so many waveforms
 ; take a long time if done modularly, and most calculations simply take to long otherwise.
@@ -35,18 +35,31 @@ channel .set 0
 	bit wave_select+channel
 	bmi Gen_lfsr
 
-	; Generate thin pulse
-		dec counter+channel
-		bne:+
-			; reset counter
-			lda divider+channel
-			sta counter+channel
-
-			; add volume to output
+	; Generate Pulse Wave, optimized w/ noise vars (divider, counter, volume, lfsr, lfsr_tap)
+	; lfsr stores state as a shift register. lfsr_tap holds high divider.
+	; 14,20 -  31,34 cycles (assumes zeropage)
+		dec counter
+		bne:++
+			;update state
+			asl lfsr
+			;if state was low
+			bcc:+
+				lda divider
+				bcc @reset_end
+			:
+			;if state was high
+				clc
+				inc lfsr
+				lda lfsr_tap
+		@reset_end:
+			sta counter
+		:
+		bit lfsr
+		; if plus, add volume to output
+		bmi:+
 			tya
-			adc volume+channel
-			tay		; maybe skip to output instead?
-					; no need to shift Y around again
+			adc volume
+			tay
 		:
 
 	bcc @end		; Always branch

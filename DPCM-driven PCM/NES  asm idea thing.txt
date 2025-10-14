@@ -320,6 +320,34 @@ bmi:+
 ;		tay
 ;	:
 ;;;
+;;;
+;	; Generate Pulse Wave, optimized w/ noise vars (divider, counter, volume, lfsr, lfsr_tap)
+;	; lfsr stores state as a shift register. lfsr_tap holds high divider.
+;	; 14,20 -  31,34 cycles (assumes zeropage)
+;		dec counter
+;		bne:++
+;			;update state
+;			asl lfsr
+;			;if state was low
+;			bcc:+
+;				lda divider
+;				bcc @reset_end
+;			:
+;			;if state was high
+;				clc
+;				inc lfsr
+;				lda lfsr_tap
+;		@reset_end:
+;			sta counter
+;		:
+;		bit lfsr
+;		; if plus, add volume to output
+;		bmi:+
+;			tya
+;			adc volume
+;			tay
+;		:
+;;;
 
 
 ; Can't have more than 4 channels, for now.
@@ -484,6 +512,39 @@ lsr						; carry clear
 adc identity_table, y	; could be "adc Y" macro
 tay
 
+;;;
+;	; Generate sawtooth, optimized
+;	; has no volume control. Instead, volume varies by pitch
+;	; 21 - 23 (assumes zeropage)
+;	lda counter
+;	sbc #0		;since C is clear
+;	bne:+
+;		lda divider
+;	:
+;	sta counter
+;	alr #%00111100
+;	lsr						; carry clear
+;	adc identity_table, y	; could be "adc Y" macro
+;	tay
+;;;
+;;;
+;	; Generate half sawtooth, optimized
+;	; has no volume control. Instead, volume varies by pitch
+;	; 24 - 27 (assumes zeropage)
+;	lda counter
+;	sbc #0		;since C is clear
+;	bne:+
+;		lda divider
+;	:
+;	sta counter
+;	cmp #$1F
+;	bcc:+
+;		lda #%00011110
+;	:
+;	alr#%00011110			; carry clear (unofficial opcode)
+;	adc identity_table, y	; could be "adc Y" macro
+;	tay
+;;;
 ;;;
 ;	; Generate sawtooth, w/ X as index in dmc_state
 ;	lda dmc_state, X
@@ -695,6 +756,7 @@ bne:+
 ;;;
 ;	; generate sample
 ;	;samples are raw 4-bit, the sound engine must also manually end sample playback by changing waveform
+;	; 33 - 37 (41 w/ page cross) (assuming zeropage)
 ;	lda play_state
 ;	eor #$80
 ;	sta play_state
@@ -750,7 +812,69 @@ bne:+
 ;	tay
 ;;;
 ;;;
-;	; generate looping sample				; dmc_state -> (divider, counter, volume) x4
+;	; generate looping sample, optimized
+;	;samples are raw 4-bit, w/ data read (and thus stored) in reverse order: 89 AB CD EF -> FE DC BA 98
+;	; 29 - 44 (48 on loop) cycles (assuming zeropage)
+;	ldx #0
+;	lda play_state
+;	eor #$80
+;	sta play_state
+;	bpl @read_high
+;		lda (sample_ptr, X)
+;		and #%00001111
+;		adc identity_table, y		; C should be clear
+;		tay
+;		bcc @end		;always branch
+;@read_high:
+;		lda (sample_ptr, X)
+;		lsr
+;		lsr
+;		lsr
+;		alr #$FE				; functionally, lsr then clc
+;		adc identity_table, y
+;		tay
+;		lda length
+;		dcp sample_ptr		;DEC, then CMP (A - mem)
+;		; if pointer is less than loop point
+;		bcs:+
+;			lda #$FF			; reset pointer to sample start
+;			sta sample_ptr
+;		:
+;@end:
+;;;
+;;;
+;	; generate looping sample, optimized even more
+;	;samples are raw 4-bit, w/ bytes stored in a partial reverse order: 89 AB CD EF -> EF CD AB 89
+;	; 25 - 38 (42 on loop) cycles (assuming zeropage)
+;	ldx #0
+;	lda play_state
+;	eor #$80
+;	sta play_state
+;	bpl @read_low
+;		lda (sample_ptr, X)
+;		lsr
+;		lsr
+;		lsr
+;		alr #$FE				; functionally, lsr then clc
+;		adc identity_table, y
+;		tay
+;		bcc @end		;always branch
+;@read_low:
+;		lda (sample_ptr, X)
+;		and #%00001111
+;		adc identity_table, y
+;		tay
+;		lda length
+;		dcp sample_ptr		;DEC, then CMP (A - mem)
+;		; if pointer is less than loop point
+;		bcs:+
+;			lda #$FF			; reset pointer to sample start
+;			sta sample_ptr
+;		:
+;@end:
+;;;
+;;;
+;	; generate looping sample, indexed				; dmc_state -> (divider, counter, volume) x4
 ;	;divider's 7th bit determines which nibble is read; bit must be set at init
 ;	;counter is used as a pointer for the sample data
 ;	;volume determines the sample length
@@ -787,7 +911,7 @@ bne:+
 ;@end:
 ;;;
 ;;;
-;	; generate looping sample, alt				; dmc_state -> (divider, counter, volume) x4
+;	; generate looping sample, indexed, alt				; dmc_state -> (divider, counter, volume) x4
 ;	;divider's 7th bit determines which nibble is read; must be init to 0
 ;	;counter is used as a pointer for the sample data
 ;	;volume determines the sample length
