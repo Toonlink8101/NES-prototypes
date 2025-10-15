@@ -6,9 +6,20 @@
 ; The maximum # of cycles for one waveform shouldn't exceed 42. However, 40 or less is ideal
 
 ; Possible optimizations:
-; - skip "adc identity_table, y" when y=0 (first channel)
-; - skip "tya" when y=0 (first channel)
-; - skip "tay" when last channel (accumulator pushed to $4011 anyway)
+; - skip "adc identity_table, y" when y=0 (first channel)	<----- This brings looped samples under 42 cycles
+; - replace "tya, adc volume" w/ "lda volume" when y=0 (first channel)
+; - skip "tay" when last channel (accumulator pushed to $4011 anyway)	<----- This also brings looped samples under 42 cycles
+
+;Since looped samples are only ideally fast enough for the first and last channel, 
+; why not limit looped samples to those channels, and do the same for endless samples on channels 2 & 3?
+
+; If this is done, then the most cycles an iteration would be for two endless samples and two LFSRs, assuming the worst case for wave selection.
+; 40+41+41+40-2-2+4*(3+3+2+3)=118+44=162
+; If done twice, that's 324 cycles, longer than the goal of 3 scanlines (314)
+; Since it's only a little bit shorter and for an odd mix of channels, it should be unlikely to be an issue
+
+; After further checking, it seems like looping samples on the last channel is also not likely to work well,
+; mostly due to "tay" still being necessary
 
 
 ;;;;;;;
@@ -18,29 +29,29 @@
 ; Generate Pulse Wave, optimized w/ noise vars (divider, counter, volume, lfsr, lfsr_tap)
 	; lfsr stores state as a shift register. lfsr_tap holds high divider.
 	; 14,20 - 31,34 cycles (assumes zeropage)
-		dec counter
-		bne:++
-			;update state
-			asl lfsr
-			;if state was low
-			bcc:+
-				lda divider
-				bcc @reset_end
-			:
-			;if state was high
-				clc
-				inc lfsr
-				lda lfsr_tap
-		@reset_end:
-			sta counter
+	dec counter
+	bne:++
+		;update state
+		asl lfsr
+		;if state was low
+		bcc:+
+			lda divider
+			bcc @reset_end
 		:
-		bit lfsr
-		; if plus, add volume to output
-		bmi:+
-			tya
-			adc volume
-			tay
-		:
+		;if state was high
+			clc
+			inc lfsr
+			lda lfsr_tap
+@reset_end:
+		sta counter
+	:
+	bit lfsr
+	; if plus, add volume to output
+	bmi:+
+		tya
+		adc volume
+		tay
+	:
 
 
 ;;;;;;;;
@@ -116,13 +127,14 @@
 	adc identity_table, y
 	tay
 	
-; Generate Triangle w/ slope control
-	; lfsr hold rising value, while lfsr_tap holds falling value. They must be positive and negative, respectively
+; Generate Triangle (or Sawtooth) w/ slope control
+	; lfsr_tap holds falling value (+), while lfsr hold rising value (-).
+	; Since their value is subtracted, they must be positive and negative, respectively
 	; period ~=~ ciel(divider / lfsr) + ciel(divider / lfsr_tap)
 	; setting lfsr == divider and lfsr_tap == -1 results in a sawtooth
 	; 28 - 33,35 (assumes zeropage)
-	lda volume
-	adc counter
+	lda counter
+	sbc volume
 	bvc:+
 		ldx lfsr
 		stx volume
@@ -146,25 +158,57 @@
 
 ; Generate lfsr
 	; 14,20 - 34,40 w/ all zeropage
-		dec counter+channel
-		bne:++
-			; reset counter
-			lda divider+channel
-			sta counter+channel
-			; galois lfsr
-			lda lfsr_tap+channel
-			sre lfsr+channel			;lsr var, then eor var
-			bcc:+
-				sta lfsr+channel
-				clc
-			:
+	dec counter
+	bne:++
+		; reset counter
+		lda divider
+		sta counter
+		; galois lfsr
+		lda lfsr_tap
+		sre lfsr			;lsr var, then eor var
+		bcc:+
+			sta lfsr
+			clc
 		:
-		lda lfsr+channel
-		bpl:+
+	:
+	lda lfsr
+	bpl:+
+		tya
+		adc volume
+		tay
+	:
+
+
+; Generate noise w/o pitch
+	; 11 - 21 (assumes zeropage)
+	lda lfsr_tap
+	sre lfsr		;LSR lfsr, then EOR it with A, saving 4 cycles
+	bcs:+
+		sta lfsr
+		tya
+		adc volume	;carry already clear
+		tay
+	:
+
+
+; Generate thin lfsr
+	; 8 - 24,34 (assumes zeropage)
+	dec counter
+	bne:++
+		; reset counter
+		lda divider
+		sta counter
+		; galois lfsr
+		lda lfsr_tap
+		sre lfsr			;lsr var, then eor var
+		bcs:+
+			sta lfsr
 			tya
-			adc volume+channel
+			adc volume
 			tay
 		:
+	:
+
 
 ;;;;;;;;
 ;Samples
@@ -178,18 +222,18 @@
 	;samples are raw 4-bit, the sound engine must also manually end sample playback by changing waveform
 	; three bytes of variables: play_state, sample_ptr, and sample_ptr+1
 	; 33 - 37 (41 w/ page cross) (assuming zeropage)
+	ldx #0
 	lda play_state
 	eor #$80
 	sta play_state
 	bpl @read_high
-		ldx #0
 		lda (sample_ptr, X)
 		and #%00001111
 		inc sample_ptr
 		bne:+
 			inc sample_ptr+1
 		:
-		bne @output_volume		;always branch
+		bcc @output_volume		;always branch
 @read_high:
 		ldx #0
 		lda (sample_ptr, X)
@@ -265,8 +309,7 @@
 		:
 @end:
 
-;Note!!!
-; The following routines additionally require a table to precalculate a division by 16 (4 right shifts)
+; A routine could use the following table to precalculate a division by 16 (4 right shifts)
 shift_right_by_four:
     .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
     .byte $01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01
@@ -285,19 +328,22 @@ shift_right_by_four:
 	.byte $0E,$0E,$0E,$0E,$0E,$0E,$0E,$0E,$0E,$0E,$0E,$0E,$0E,$0E,$0E,$0E
 	.byte $0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F
 
-; Generate looping sample, optimized even more... but poorly :(
+; Generate looping sample, optimized even more... AGAIN O.O
 	;samples are raw 4-bit, w/ bytes stored in a partial reverse order: 89 AB CD EF >-outputs-> EF CD AB 89
 	;sample length is always an even number, since loop logic is only run after reading every second sample
 	; four bytes of variables: play_state, loop_point, sample_ptr, and sample_ptr+1
 	; 33 - 38 (42 on loop) cycles (assuming zeropage)
 	ldx #0
-	lda play_state
+	asl play_state
 	eor #$80
 	sta play_state
 	bpl @read_low
 		lda (sample_ptr, X)
 		tax
-		lda shift_right_by_four, X
+		lsr
+		lsr
+		lsr
+		alr #$FE				; functionally, lsr then clc
 		adc identity_table, y
 		tay
 		bcc @end		;always branch
