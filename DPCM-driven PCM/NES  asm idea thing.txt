@@ -348,6 +348,32 @@ bmi:+
 ;			tay
 ;		:
 ;;;
+;;;
+;	; Generate Square Wave, optimized the old way
+;	; 17 - 23,30 (assumes zeropage)
+;		lda counter
+;		sbc #0
+;		bne:+
+;			; reset counter
+;			lda divider
+;			lsr
+;			ora #$80 ; set up overflow
+;			;C might be set, but A is minus, so ADC is skipped
+;		:
+;		bvc:+
+;			; reset counter
+;			lda divider
+;			lsr
+;			adc #0	; handle odd lengths	;C clear
+;		:
+;		sta counter
+;		; if plus, add volume to output
+;		bmi:+
+;			tya
+;			adc square1_volume
+;			tay
+;		:
+;;;
 
 
 ; Can't have more than 4 channels, for now.

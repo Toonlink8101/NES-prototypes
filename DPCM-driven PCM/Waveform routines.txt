@@ -15,16 +15,140 @@
 
 ; If this is done, then the most cycles an iteration would be for two endless samples and two LFSRs, assuming the worst case for wave selection.
 ; 40+41+41+40-2-2+4*(3+3+2+3)=118+44=162
-; If done twice, that's 324 cycles, longer than the goal of 3 scanlines (314)
+; If done twice, that's 324 cycles, longer than the goal of 3 scanlines (314 cycles) (TYPO!)
 ; Since it's only a little bit shorter and for an odd mix of channels, it should be unlikely to be an issue
 
 ; After further checking, it seems like looping samples on the last channel is also not likely to work well,
 ; mostly due to "tay" still being necessary
 
+; NEW MATH!
+; 341 cycles per 3 scanlines
+; for 2 iterations of sound: (170.5 cycles for each)
+; 2*(4*highest_cost -4 + 4*(3+3+2+3)) <= 341
+; 8*cost + 80 <= 341
+; 8*cost <= 261
+; cost <= 32.625
+; cost < 33
+
+; Worst case is now 40 cycles per channel (possible with LFSRs or samples)
+; 4*40 -2-2 + 4*(3+3+2+3) = 160 -4 + 44 = 200
+
+; A more average worst case is 35 cycles
+; 4*35 = 140 
+; 140 - 170 = 30
+; 30 / 4 = 7.5 cycles for wave selection
+; BIT + skiped branch + always branch = 3+2+3 = 8
+; average between the two is 7, but requires that no more than 2 channels taking the longer route
+
+; True average for WC is 34.75 = (34+35+34+40)/4
+; 4 * 35.75 = 143
+; 170 - 143 = 27
+; 27 cycles for total wave selection
+; assuming 2 waves are selectable for each channel
+; 6 = fast branch, 8 = slow branch
+; 27 - 8 - 6 - 6 - 6 = 1
+; only one channel could take a slower branch
+; limiting one channel to never branch gives
+; 8 * 3 = 24 < 27
+
+; BIT, branch, skipped branch, always branch = 3+3+2+3 = 11
+; allowing one to select from 4 still just barely lets two select from two waveforms
+; 11 + 8 + 8 = 27
+
+; But, what if I skip the always branch?
+; What if one variable decides the waveform for all of the channels?
+; BIT, branch, branch = 3*3 = 9 for the worst case
+
+; At this point, implement it as a jump table
+; That way, almost any combination of channels is possible
+; 170 - 25 - 8 + 4 = 141
+; 141 / 4 = 35.25 cycles per channel on average
+
+; This also means that any number waveform generators can be used. More than 4 can be used for the whole engine
+
+; Possible waveforms      cycles	wave	note
+; - Thin pulse				20		\_\_
+; - LFSR w/o pitch			21^		nois	no ctrl
+; - Sawtooth wave			23*		////	slide
+; - Thin pulse slide		25		\_\_
+; - Saw w/ slope control	26*		////	ctrl
+; - Half Sawtooth			27*		/-/-
+; - Square wave				30		-_-_
+; - Square slide			30		-_-_	slide
+; - Triangle wave			32*		/\/\
+; - Page sample				34*		smpl
+; - Thin LFSR				34^		nois	thin
+; - Pulse wave				34^		--_-
+; - Linear (saw/tri)		35*		/\//	ctrl
+; - Looped sample			40*		smpl	ctrl
+; - Full LFSR				40^		nois	ctrl
+;				*2 cycles less if first
+;				^Doesn't need C clear
+
+;Remember that 2 cycles are always saved for both the first and last channel,
+; since at the start, Y doesn't need to be tranfered to A, and at the end, total volume must be in A for output
+
+;;;;;;;
+;Waveform Select Jump
+	; 25 cycles
+	;ldy #0		; no need to clear Y, since first channel overrides it w/o reading Y
+	clc			; not always needed, should be handled after jump
+	ldx waveforms
+	lda jump_table_lo,x
+	pha
+	lda jump_table_hi,x
+	pha
+	;pull return address from stack
+	rts
+;;;;;;;
+
+;;;;;;;
+;Output to DPCM
+	; run at the end of each set of waveforms
+	; 8 cycles
+	asl
+	and #%01111110
+	sta DMC_output
+	; rti could go here, but might not always
+;;;;;;;
+
 
 ;;;;;;;
 ;Pulse
 ;;;;;;;
+
+; Generate thin pulse
+	; 8 - 20 cycles (assumes zeropage)
+	dec counter
+	bne:+
+		; reset counter
+		lda divider
+		sta counter
+
+		; add volume to output
+		tya
+		adc volume
+		tay		; maybe skip to output instead?
+				; no need to shift Y around again
+	:
+
+; Generate Thin pulse slide
+	; 8 - 25 cycles (assumes zeropage)
+	dec counter
+	bne:+
+		; reset counter
+		lda divider
+		sta counter
+		
+		dec divider
+
+		; add volume to output
+		tya
+		adc volume
+		tay		; maybe skip to output instead?
+				; no need to shift Y around again
+	:
+
 
 ; Generate Pulse Wave, optimized w/ noise vars (divider, counter, volume, lfsr, lfsr_tap)
 	; lfsr stores state as a shift register. lfsr_tap holds high divider.
@@ -34,7 +158,7 @@
 		;update state
 		asl lfsr
 		;if state was low
-		bcc:+
+		bcs:+
 			lda divider
 			bcc @reset_end
 		:
@@ -48,6 +172,176 @@
 	bit lfsr
 	; if plus, add volume to output
 	bmi:+
+		tya
+		adc volume
+		tay
+	:
+
+; Generate Pulse Wave, optimized poorly
+	; lfsr stores state as a shift register. lfsr_tap holds high divider.
+	; 16,23 - 31,38 cycles (assumes zeropage)
+	lda lfsr
+	dec counter
+	bne:++
+		;update state
+		asl
+		;if state was low
+		bcs:+
+			ldx divider
+			bcc @reset_selected
+		:
+		;if state was high
+			adc #0
+			ldx lfsr_tap
+@reset_selected:
+		sta lfsr
+		stx counter
+	:
+	cmp #$80
+	; if plus, add volume to output
+	bcs:+
+		tya
+		adc volume
+		tay
+	:
+
+; Generate Pulse Wave, psuedo-LFO for finer pitch control
+	; lfsr stores state as a shift register. lfsr_tap holds high divider.
+	; 16,23 - 35,46 cycles (assumes zeropage)
+	lda lfsr	;load state
+	dec counter
+	bne @no_reset
+		asl
+		; if state was low
+		bcs:+
+			ldx divider
+			bcc @reset_selected		;always branch
+		:
+		;if state was high
+			adc #0
+			ldx lfsr_tap
+@reset_selected:
+		;get offset from state
+		asl
+		bcc:+
+			adc #0
+			inx
+		:
+		stx counter
+		sta lfsr
+@no_reset:
+	cmp #$80
+	bcs:+
+		tya
+		adc volume
+		tay
+	:
+
+; NOTE: this pseudo-LFO technique doesn't sound good in testing
+; using a looping sample would likely be better
+
+; Generate Pulse Wave w/ psuedo-LFO, optimized
+	; lfsr stores state as a shift register. lfsr_tap holds high divider.
+	; 16,23 - 39,43 cycles (assumes zeropage)
+	lda lfsr	;load state
+	dec counter
+	bne @no_reset
+		asl			;8-bit ROL twice
+		adc #$80
+		rol			;N holds new state, while C holds offset
+		; if state is low
+		bpl:+
+			ldx divider
+			bmi @reset_selected		;always branch
+		:
+		;if state is high
+			ldx lfsr_tap
+@reset_selected:
+		;get offset from C
+		bcc:+
+			inx
+		:
+		stx counter
+		sta lfsr
+@no_reset:
+	cmp #$80
+	bcs:+		;C always clear
+		tya
+		adc volume
+		tay
+	:
+
+; Generate Square Wave, optimized the old way
+	; 17 - 23,30 (assumes zeropage)
+	lda counter
+	sbc #0
+	bne:+
+		; reset counter
+		lda divider
+		alr #FE		;LSR, then CLC
+		ora #$80 ; set up overflow
+	:
+	bvc:+
+		; reset counter
+		lda divider
+		lsr
+		adc #0	; handle odd lengths	;C clear
+	:
+	sta counter
+	; if plus, add volume to output
+	bmi:+
+		tya
+		adc volume
+		tay
+	:
+
+; Generate Square slide, the old way
+	; 17 - 28,30 (assumes zeropage)
+	lda counter
+	sbc #0
+	bne:+
+		; reset counter
+		lda divider
+		alr #FE		;LSR, then CLC
+		ora #$80 ; set up overflow
+	:
+	bvc:+
+		; reset counter
+		lda divider
+		lsr
+		adc #0	; handle odd lengths	;C clear
+		dec divider		;since adc volume is skipped, this is essentially free
+	:
+	sta counter
+	; if minus, add volume to output
+	bpl:+
+		tya
+		adc volume
+		tay
+	:
+
+; Generate Square slide w/ slide speed control
+	; lfsr_tap controls slide speed
+	; 17 - 29,30 (assumes zeropage)
+	lda counter
+	sbc #0
+	bne:+
+		; reset counter
+		lda divider
+		alr #FE		;LSR, then CLC
+		ora #$80 ; set up overflow
+	:
+	bvc:+
+		; reset counter
+		lda divider
+		sbc lfsr_tap
+		sta divider
+		lsr
+		adc #0	; handle odd lengths	;C clear
+	:
+	sta counter
+	; if minus, add volume to output
+	bpl:+
 		tya
 		adc volume
 		tay
@@ -235,12 +529,35 @@
 		:
 		bcc @output_volume		;always branch
 @read_high:
-		ldx #0
 		lda (sample_ptr, X)
 		lsr
 		lsr
 		lsr
 		lsr
+@output_volume:
+		adc identity_table, y
+		tay
+		
+; Generate page sample
+	;samples are raw 4-bit, the sound engine must also manually end sample playback by changing waveform
+	; three bytes of variables: play_state, sample_ptr, and sample_ptr+1
+	; sample loops through a full page of data (512 samples)
+	; 33 - 34 (assuming zeropage)
+	ldx #0
+	lda play_state
+	eor #$80
+	sta play_state
+	bpl @read_high
+		lda (sample_ptr, X)
+		and #%00001111
+		inc sample_ptr
+		bcc @output_volume		;always branch
+@read_high:
+		lda (sample_ptr, X)
+		lsr
+		lsr
+		lsr
+		alr #FE		;lsr, then clc
 @output_volume:
 		adc identity_table, y
 		tay
@@ -309,6 +626,37 @@
 		:
 @end:
 
+
+; Generate looping sample, optimized even more... AGAIN O.O
+	;samples are raw 4-bit, w/ bytes stored in a partial reverse order: 89 AB CD EF >-outputs-> EF CD AB 89
+	;sample length is always an even number, since loop logic is only run after reading every second sample
+	; four bytes of variables: play_state, loop_point, sample_ptr, and sample_ptr+1
+	; 35 - 35 (40 on loop) cycles (assuming zeropage)
+	; 10 + (19 OR 19) (on loop: +5) + 6
+	ldx #0
+	lda play_state
+	eor #$80
+	sta play_state
+	bpl @read_low
+		lda (sample_ptr, X)
+		lsr
+		lsr
+		lsr
+		alr #$FE				; functionally, lsr then clc
+		bcc @end		;always branch
+@read_low:
+		lda (sample_ptr, X)
+		and #%00001111
+		dec sample_ptr
+		bne:+
+			ldx loop_point			; reset pointer to loop point
+			stx sample_ptr
+		:
+@end:
+	adc identity_table, y
+	tay
+
+
 ; A routine could use the following table to precalculate a division by 16 (4 right shifts)
 shift_right_by_four:
     .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
@@ -327,36 +675,3 @@ shift_right_by_four:
 	.byte $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D
 	.byte $0E,$0E,$0E,$0E,$0E,$0E,$0E,$0E,$0E,$0E,$0E,$0E,$0E,$0E,$0E,$0E
 	.byte $0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F
-
-; Generate looping sample, optimized even more... AGAIN O.O
-	;samples are raw 4-bit, w/ bytes stored in a partial reverse order: 89 AB CD EF >-outputs-> EF CD AB 89
-	;sample length is always an even number, since loop logic is only run after reading every second sample
-	; four bytes of variables: play_state, loop_point, sample_ptr, and sample_ptr+1
-	; 33 - 38 (42 on loop) cycles (assuming zeropage)
-	ldx #0
-	asl play_state
-	eor #$80
-	sta play_state
-	bpl @read_low
-		lda (sample_ptr, X)
-		tax
-		lsr
-		lsr
-		lsr
-		alr #$FE				; functionally, lsr then clc
-		adc identity_table, y
-		tay
-		bcc @end		;always branch
-@read_low:
-		lda (sample_ptr, X)
-		and #%00001111
-		adc identity_table, y
-		tay
-		lda loop_point
-		dcp sample_ptr		;DEC, then CMP (A - mem)
-		; if pointer is less than loop point
-		bcs:+
-			lda #$FF			; reset pointer to sample start
-			sta sample_ptr
-		:
-@end:
