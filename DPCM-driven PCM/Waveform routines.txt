@@ -37,6 +37,7 @@
 ; 4*35 = 140 
 ; 140 - 170 = 30
 ; 30 / 4 = 7.5 cycles for wave selection
+; BIT + branch = 3+3 = 6
 ; BIT + skiped branch + always branch = 3+2+3 = 8
 ; average between the two is 7, but requires that no more than 2 channels taking the longer route
 
