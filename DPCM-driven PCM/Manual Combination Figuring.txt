@@ -1,0 +1,113 @@
+AAAA		4 Pulse
+AAAB		3 Pulse, LFSR
+AAAC		3 Pulse, Page sample
+AAAD		3 Pulse, Linear
+AAAE		3 Pulse, Looped sample
+AABB		2 Pulse, 2 LFSR
+AABC		2 Pulse, LFSR, Page sample
+AABD		2 Pulse, LFSR, Linear
+AABE		2 Pulse, LFSR, Looped sample
+AACC		2 Pulse, 2 Page sample
+AACD		2 Pulse, Page sample, Linear
+AACE		2 Pulse, Page sample, Looped sample
+AADD		2 Pulse, 2 Linear
+AADE		2 Pulse, Linear, Looped sample
+AAEE		2 Pulse, 2 Looped sample
+ABBB		Pulse, 3 LFSR
+ABBC		Pulse, 2 LFSR, Page sample
+ABBD		Pulse, 2 LFSR, Linear
+ABBE		Pulse, 2 LFSR, Looped sample
+ABCC		Pulse, LFSR, 2 Page sample
+ABCD		Pulse, LFSR, Page sample, Linear
+ABCE		Pulse, LFSR, Page sample, Looped sample
+ABDD		Pulse, LFSR, 2 Linear
+ABDE		Pulse, LFSR, Linear, Looped sample
+ABEE		Pulse, LFSR, Looped sample
+ACCC		Pulse, 3 Page sample
+ACCD		Pulse, 2 Page sample, Linear
+ACCE		Pulse, 2 Page sample, Looped sample
+ACDD		Pulse, Page sample, 2 Linear
+ACDE		Pulse, Page sample, Linear, Looped sample
+ACEE		Pulse, Page sample, 2 Looped sample
+ADDD		Pulse, 3 Linear
+ADDE		Pulse, 2 Linear, Looped sample
+ADEE		Pulse, Linear, 2 Looped sample
+AEEE		Pulse, 3 Looped sample
+BBBB		4 LFSR
+BBBC		3 LFSR, Page sample
+BBBD		3 LFSR, Linear
+BBBE		3 LFSR, Looped sample
+BBCC		2 LFSR, 2 Page sample
+BBCD		2 LFSR, Page sample, Linear
+BBCE		2 LFSR, Page sample, Looped sample
+BBDD		2 LFSR, 2 Linear
+BBDE		2 LFSR, Linear, Looped sample
+BBEE		2 LFSR, 2 Looped sample
+BCCC		LFSR, 3 Page sample
+BCCD		LFSR, 2 Page sample, Linear
+BCCE		LFSR, 2 Page sample, Looped sample
+BCDD		LFSR, Page sample, 2 Linear
+BCDE		LFSR, Page sample, Linear, Looped sample
+BCEE		LFSR, Page sample, 2 Looped sample
+BDDD		LFSR, 3 Linear
+BDDE		LFSR, 2 Linear, Looped sample
+BDEE		LFSR, Linear, 2 Looped sample
+BEEE		LFSR, 3 Looped sample
+CCCC		4 Page sample
+CCCD		3 Page sample, Linear
+CCCE		3 Page sample, Looped Sample
+CCDD		2 Page sample, 2 Linear
+CCDE		2 Page sample, Linear, Looped sample
+CCEE		2 Page sample, 2 Looped sample
+CDDD		Page sample, 3 Linear
+CDDE		Page sample, 2 Linear, Looped sample 
+CDEE		Page sample, Linear, 2 Looped sample
+CEEE		Page sample, 3 Looped sample
+DDDD		4 Linear
+DDDE		3 Linear, Looped sample
+DDEE		2 Linear, 2 Looped sample
+DEEE		Linear, 3 Looped sample
+EEEE		4 Looped sample
+
+; - Page sample - 		29-
+; - Thin LFSR - 		20-
+; - Pulse wave -	 	17-
+; - Linear (saw/tri) - 	29-
+
+SAMPLE = Page sample
+bytes	cycle	waveforms
+68		136		PULSE,PULSE,PULSE,PULSE
+71		136		LFSR,PULSE,PULSE,PULSE
+80		137		LINEAR,PULSE,PULSE,PULSE
+80		136		PULSE,PULSE,PULSE,SAMPLE
+74		136		LFSR,LFSR,PULSE,PULSE
+83		137		LFSR,LINEAR,PULSE,PULSE
+83		136		LFSR,PULSE,PULSE,SAMPLE
+92		138		LINEAR,LINEAR,PULSE,PULSE
+83		137		LINEAR,PULSE,PULSE,SAMPLE
+92		136		PULSE,PULSE,SAMPLE,SAMPLE
+77		136		LFSR,LFSR,LFSR,PULSE
+86		137		LFSR,LFSR,LINEAR,PULSE
+86		136		LFSR,LFSR,PULSE,SAMPLE
+95		138		LFSR,LINEAR,LINEAR,PULSE
+95		137		LFSR,LINEAR,PULSE,SAMPLE
+95		136		LFSR,PULSE,SAMPLE,SAMPLE
+104		139		LINEAR,LINEAR,LINEAR,PULSE
+104		138		LINEAR,LINEAR,PULSE,SAMPLE
+104		137		LINEAR,PULSE,SAMPLE,SAMPLE
+104		136		PULSE,SAMPLE,SAMPLE,SAMPLE
+80		136		LFSR,LFSR,LFSR,LFSR
+89		137		LFSR,LFSR,LFSR,LINEAR
+89		136		LFSR,LFSR,LFSR,SAMPLE
+98		138		LFSR,LFSR,LINEAR,LINEAR
+98		137		LFSR,LFSR,LINEAR,SAMPLE
+98		136		LFSR,LFSR,SAMPLE,SAMPLE
+107		139		LFSR,LINEAR,LINEAR,LINEAR
+107		138		LFSR,LINEAR,LINEAR,SAMPLE
+107		137		LFSR,LINEAR,SAMPLE,SAMPLE
+107		136		LFSR,SAMPLE,SAMPLE,SAMPLE
+116		140		LINEAR,LINEAR,LINEAR,LINEAR
+116		139		LINEAR,LINEAR,LINEAR,SAMPLE
+116		138		LINEAR,LINEAR,SAMPLE,SAMPLE
+116		137		LINEAR,SAMPLE,SAMPLE,SAMPLE
+116		136		SAMPLE,SAMPLE,SAMPLE,SAMPLE

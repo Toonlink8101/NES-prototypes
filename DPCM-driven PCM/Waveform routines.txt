@@ -67,22 +67,22 @@
 
 ; This also means that any number waveform generators can be used. More than 4 can be used for the whole engine
 
-; Possible waveforms      cycles	wave	note
-; - Thin pulse				20		\_\_
-; - LFSR w/o pitch			21^		nois	no ctrl
-; - Sawtooth wave			23*		////	slide
-; - Thin pulse slide		25		\_\_
-; - Saw w/ slope control	26*		////	ctrl
+; Possible waveforms      cycles	wave	unique	   bytes
+; - Thin pulse				20		\_\_				12
+; - LFSR w/o pitch			21^		nois	no pitch
+; - Sawtooth wave			23*		////
+; - Thin pulse slide		25		\_\_	slide
+; - Saw w/ slope control	26*		////	control
 ; - Half Sawtooth			27*		/-/-
 ; - Square wave				30		-_-_
 ; - Square slide			30		-_-_	slide
 ; - Triangle wave			32*		/\/\
-; - Page sample				34*		smpl
-; - Thin LFSR				34^		nois	thin
-; - Pulse wave				34^		--_-
-; - Linear (saw/tri)		35*		/\//	ctrl
-; - Looped sample			40*		smpl	ctrl
-; - Full LFSR				40^		nois	ctrl
+; - Page sample				34*		smpl				29-
+; - Thin LFSR				34^		nois	thin		20-
+; - Pulse wave				34^		--_-				17-
+; - Linear (saw/tri)		35*		/\//	control		29-
+; - Looped sample			40*		smpl	control		35
+; - Full LFSR				40^		nois	control
 ;				*2 cycles less if first
 ;				^Doesn't need C clear
 
@@ -120,6 +120,7 @@
 
 ; Generate thin pulse
 	; 8 - 20 cycles (assumes zeropage)
+	; 12 bytes
 	dec counter
 	bne:+
 		; reset counter
@@ -154,6 +155,7 @@
 ; Generate Pulse Wave, optimized w/ noise vars (divider, counter, volume, lfsr, lfsr_tap)
 	; lfsr stores state as a shift register. lfsr_tap holds high divider.
 	; 14,20 - 31,34 cycles (assumes zeropage)
+	; 17 bytes
 	dec counter
 	bne:++
 		;update state
@@ -428,6 +430,7 @@
 	; period ~=~ ciel(divider / lfsr) + ciel(divider / lfsr_tap)
 	; setting lfsr == divider and lfsr_tap == -1 results in a sawtooth
 	; 28 - 33,35 (assumes zeropage)
+	; 29 bytes
 	lda counter
 	sbc volume
 	bvc:+
@@ -487,7 +490,8 @@
 
 
 ; Generate thin lfsr
-	; 8 - 24,34 (assumes zeropage)
+	; 8 - 24,34 cycles (assumes zeropage)
+	; 20 bytes
 	dec counter
 	bne:++
 		; reset counter
@@ -543,7 +547,8 @@
 	;samples are raw 4-bit, the sound engine must also manually end sample playback by changing waveform
 	; three bytes of variables: play_state, sample_ptr, and sample_ptr+1
 	; sample loops through a full page of data (512 samples)
-	; 33 - 34 (assuming zeropage)
+	; 33 - 34 cycles (assuming zeropage)
+	; 29 bytes
 	ldx #0
 	lda play_state
 	eor #$80
@@ -632,8 +637,8 @@
 	;samples are raw 4-bit, w/ bytes stored in a partial reverse order: 89 AB CD EF >-outputs-> EF CD AB 89
 	;sample length is always an even number, since loop logic is only run after reading every second sample
 	; four bytes of variables: play_state, loop_point, sample_ptr, and sample_ptr+1
-	; 35 - 35 (40 on loop) cycles (assuming zeropage)
-	; 10 + (19 OR 19) (on loop: +5) + 6
+	; 35 (40 on loop) cycles (assuming zeropage)
+	; 35 bytes
 	ldx #0
 	lda play_state
 	eor #$80
