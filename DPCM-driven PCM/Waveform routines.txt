@@ -69,7 +69,7 @@
 
 ; Possible waveforms      cycles	wave	unique	   bytes
 ; - Thin pulse				20		\_\_				12
-; - LFSR w/o pitch			21^		nois	no pitch
+; - LFSR w/o pitch			21^		nois	no pitch	13
 ; - Sawtooth wave			23*		////
 ; - Thin pulse slide		25		\_\_	slide
 ; - Saw w/ slope control	26*		////	control
@@ -77,7 +77,7 @@
 ; - Square wave				30		-_-_
 ; - Square slide			30		-_-_	slide
 ; - Triangle wave			32*		/\/\
-; - Page sample				34*		smpl				29-
+; - Page sample				35*		smpl				22-
 ; - Thin LFSR				34^		nois	thin		20-
 ; - Pulse wave				34^		--_-				17-
 ; - Linear (saw/tri)		35*		/\//	control		29-
@@ -93,7 +93,7 @@
 ;Waveform Select Jump
 	; 25 cycles
 	;ldy #0		; no need to clear Y, since first channel overrides it w/o reading Y
-	clc			; not always needed, should be handled after jump
+	;clc			; not always needed, should be handled after jump, if at all
 	ldx waveforms
 	lda jump_table_lo,x
 	pha
@@ -109,7 +109,7 @@
 	; 8 cycles
 	asl
 	and #%01111110
-	sta DMC_output
+	sta $4011
 	; rti could go here, but might not always
 ;;;;;;;
 
@@ -424,7 +424,7 @@
 	adc identity_table, y
 	tay
 	
-; Generate Triangle (or Sawtooth) w/ slope control
+; Generate Linear Wave (Triangle/Sawtooth)
 	; lfsr_tap holds falling value (+), while lfsr hold rising value (-).
 	; Since their value is subtracted, they must be positive and negative, respectively
 	; period ~=~ ciel(divider / lfsr) + ciel(divider / lfsr_tap)
@@ -479,6 +479,7 @@
 
 ; Generate noise w/o pitch
 	; 11 - 21 (assumes zeropage)
+	; 13 bytes
 	lda lfsr_tap
 	sre lfsr		;LSR lfsr, then EOR it with A, saving 4 cycles
 	bcs:+
@@ -543,8 +544,8 @@
 		adc identity_table, y
 		tay
 		
-; Generate page sample
-	;samples are raw 4-bit, the sound engine must also manually end sample playback by changing waveform
+; Generate page sample (old)
+	;samples are raw 4-bit, the sound engine must also manually end playback either with a new waveform or a blank sample
 	; three bytes of variables: play_state, sample_ptr, and sample_ptr+1
 	; sample loops through a full page of data (512 samples)
 	; 33 - 34 cycles (assuming zeropage)
@@ -554,11 +555,37 @@
 	eor #$80
 	sta play_state
 	bpl @read_high
+;read_low:
 		lda (sample_ptr, X)
 		and #%00001111
 		inc sample_ptr
 		bcc @output_volume		;always branch
 @read_high:
+		lda (sample_ptr, X)
+		lsr
+		lsr
+		lsr
+		alr #FE		;lsr, then clc
+@output_volume:
+		adc identity_table, y
+		tay
+		
+; Generate Page Sample
+	;samples are raw 4-bit, the sound engine must also manually end playback either with a new waveform or a blank sample
+	; three bytes of variables: play_state, sample_ptr, and sample_ptr+1
+	; sample loops through a full page of data (512 samples)
+	; 31 - 35 cycles (assuming zeropage)
+	; 22 bytes
+	ldx #0
+	asl play_state
+	bcs @read_high
+;read_low:
+		lda (sample_ptr, X)
+		and #%00001111
+		inc sample_ptr
+		jmp @output_volume
+@read_high:
+		inc play_state
 		lda (sample_ptr, X)
 		lsr
 		lsr
