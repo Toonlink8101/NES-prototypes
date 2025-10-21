@@ -127,66 +127,67 @@ sta $4011
 ; w to 1 for options that require that to work.
 
 ; 1. Scrolling only fine X, use a $2005 write with BIT $2002
-; Note: this can also set up a delayed update to coarse X
-; that triggers at the end of the following scanline
-;LDA #%XXXXXxxx		;old (or delayed) coarse X, new fine X
-;hblank
-;STA $2005
-;BIT $2002	;reset W
+; Note: this can also set up a delayed update to coarse X that triggers at the end of the following scanline
+; 10 cycles (6 w/o reset)
+	;LDA #%XXXXXxxx		;old (or delayed) coarse X, new fine X
+	;hblank
+	;STA $2005
+	;BIT $2002	;reset W
 
-; 2. Scrolling by not fine X, use two $2006 writes at the
-; cost of zeroing the high bit of fine Y
-;LDA #%00yyNNYY
-;STA $2006		;no video update yet
-;LDA #%YYYXXXXX
-;hblank
-;STA $2006
+; 2. Scrolling by not fine X, use two $2006 writes at the cost of zeroing the high bit of fine Y
+; 12 cycles
+	;LDA #%00yyNNYY
+	;STA $2006		;no video update yet
+	;LDA #%YYYXXXXX
+	;hblank
+	;STA $2006
 
 ; 3. Scrolling only X (coarse and fine), use two $2005 writes
-; Note: this can also set up a delayed update to coarse X
-; that triggers at the end of the following scanline
-;LDA #%XXXXXxxx		;new coarse X, old fine X
-;STA $2005
-;BIT $2002	;reset W
-;LDA #%XXXXXxxx		;new (or delayed) coarse X, new fine X
-;hblank
-;STA $2005
-;BIT $2002	;reset W
+; Note: this can also set up a delayed update to coarse X that triggers at the end of the following scanline
+; 20 cycles (16 w/o reset)
+	;LDA #%XXXXXxxx		;new coarse X, old fine X
+	;STA $2005
+	;BIT $2002	;reset W
+	;LDA #%XXXXXxxx		;new (or delayed) coarse X, new fine X
+	;hblank
+	;STA $2005
+	;BIT $2002	;reset W
 
 
-; 4. Scrolling by both coarse/fine X and Y, use a combination 
-; of the previous methods with the same drawbacks
-;LDA #%00yyNNYY
-;STA $2006		;no video update yet
-;LDA #%YYYXXXXX
-;LDY #%XXXXXxxx		;old (or delayed) coarse X, new fine X
-;hblank
-;STA $2006
-;STY $2005
-;BIT $2002	;reset W
+; 4. Scrolling by both coarse/fine X and Y, use a combination of the previous methods with the same drawbacks
+; 22 cycles (18 w/o reset)
+	;LDA #%00yyNNYY
+	;STA $2006		;no video update yet
+	;LDA #%YYYXXXXX
+	;LDY #%XXXXXxxx		;old (or delayed) coarse X, new fine X
+	;hblank
+	;STA $2006
+	;STY $2005
+	;BIT $2002	;reset W
 
 ; 4b. Scrolling by coarse/fine X/Y, but w must be at 1
-; Note: any scrolling method that resets W can skip that
-; step to use this scrolling method next
-;LDA #%YYYYYyyy		;3 low bits of coarse Y overwritten later
-;STA $2005
-;LDA #%XXXXXxxx		;all of coarse X is overwritten later
-;LDY #%YYYXXXXX
-;hblank
-;STA $2005
-;STY $2006
+; Note: any scrolling method that resets W can skip that step to use this scrolling method next
+; 18 cycles
+	;LDA #%YYYYYyyy		;3 low bits of coarse Y overwritten later
+	;STA $2005
+	;LDA #%XXXXXxxx		;all of coarse X is overwritten later
+	;LDY #%YYYXXXXX
+	;hblank
+	;STA $2005
+	;STY $2006
 
 
 ; 5. Full control, interleave $2006 and $2005 writes
-;LDA #%0000NN00
-;STA $2006
-;LDA #%YYYYYyyy		;3 low bits of coarse Y overwritten later
-;STA $2005
-;LDA #%XXXXXxxx		;all of coarse X is overwritten later
-;LDY #%YYYXXXXX
-;hblank
-;STA $2005
-;STY $2006
+; 24 cycles
+	;LDA #%0000NN00
+	;STA $2006
+	;LDA #%YYYYYyyy		;3 low bits of coarse Y overwritten later
+	;STA $2005
+	;LDA #%XXXXXxxx		;all of coarse X is overwritten later
+	;LDY #%YYYXXXXX
+	;hblank
+	;STA $2005
+	;STY $2006
 
 
 
