@@ -107,6 +107,7 @@
 ;Output to DPCM
 	; run at the end of each set of waveforms
 	; 8 cycles
+	;tya		; no need since last channel doesn't TAY
 	asl
 	and #%01111110
 	sta $4011

@@ -1,93 +1,40 @@
 ; This code is at some point called during the IRQ routine, whenever the sound engine is interated
 
-; This version cuts down the waveform count to two: pulse and lfsr
-; Since lfsr can create many different waveforms already, even square and some pulse waves, 
-; it makes sense to use only that one, especially since selecting between so many waveforms
-; take a long time if done modularly, and most calculations simply take to long otherwise.
-; A sawtooth waveform might still fit, assuming either one channel losses it's thin-pulse
-; or more cycles are spent selecting a waveform
+; This version cuts down the waveform count to four: Pulse, Linear (saw/tri), LFSR, and Sample (Page)
+; All waveforms are simulateously selected by a jump table, where the table holds all 256 possible combinations of channels
+; This takes up a sizable amount of memory (6-8k), but keeps execution quick without performance drawbacks.
 
-; Variables are all stored in a sort of structure, repeating for each channel
-;	wave_select - bit 7 only - either lfsr or needle pulse
-;	divider - divides IRQ "clock" into desired frequency
-;	counter - decremented each IRQ, is reset to divider at zero
-;	lfsr - the current state of the channel's lfsr
-;	lfsr_tap - the value XOR'd to the lfsr when needed
-;	volume - the channel's maximum output
+; Since variables are used differently by each waveform, they are all stored in a section of 21 bytes,
+; where 5 bytes are assigned to each channel, and the remaining byte selects the waveforms.
 ; For speed, all variables are stored on the zeropage
 
+;Waveforms:
+; 00 - Pulse
+; 01 - Linear
+; 10 - LFSR
+; 11 - Sample
+
+; Per channel optimizations:
+; - skip "adc identity_table, y" when y=0 (first channel)
+; - replace "tya, adc volume" w/ "lda volume" when y=0 (first channel)
+; - skip "tay" when last channel (accumulator pushed to $4011 anyway)
+
 .segment "ZEROPAGE"
-wave_select: .res 4
-divider: .res 4
-counter: .res 4
-lfsr: .res 4
-lfsr_tap: .res 4
-volume: .res 4
+waveforms: .res 1
+channel_vars: .res 20
 
 .segment "CODE"
 
-Iterate_all_channels:
-clc
+Iterate_channels:
+;Waveform Select Jump
+	; 25 cycles
+	;ldy #0			; no need to clear Y, since first channel overrides it w/o reading Y
+	;clc			; not always needed, should be handled after jump, if at all
+	ldx waveforms
+	lda jump_table_lo,x
+	pha
+	lda jump_table_hi,x
+	pha
+	;pull return address from stack
+	rts
 
-channel .set 0
-.repeat 4
-
-	bit wave_select+channel
-	bmi Gen_lfsr
-
-	; Generate Pulse Wave, optimized w/ noise vars (divider, counter, volume, lfsr, lfsr_tap)
-	; lfsr stores state as a shift register. lfsr_tap holds high divider.
-	; 14,20 -  31,34 cycles (assumes zeropage)
-		dec counter
-		bne:++
-			;update state
-			asl lfsr
-			;if state was low
-			bcc:+
-				lda divider
-				bcc @reset_end
-			:
-			;if state was high
-				clc
-				inc lfsr
-				lda lfsr_tap
-		@reset_end:
-			sta counter
-		:
-		bit lfsr
-		; if plus, add volume to output
-		bmi:+
-			tya
-			adc volume
-			tay
-		:
-
-	bcc @end		; Always branch
-
-	Gen_lfsr:
-	; Generate lfsr
-	; 14,20 - 34,40 w/ all zeropage
-		dec counter+channel
-		bne:++
-			; reset counter
-			lda divider+channel
-			sta counter+channel
-			; galois lfsr
-			lda lfsr_tap+channel
-			sre lfsr+channel			;lsr var, then eor var
-			bcc:+
-				sta lfsr+channel
-				clc
-			:
-		:
-		lda lfsr+channel
-		bpl:+
-			tya
-			adc volume+channel
-			tay
-		:
-
-	@end:
-
-channel .set channel+1
-.endrep
