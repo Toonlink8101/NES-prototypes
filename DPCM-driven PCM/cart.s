@@ -1,6 +1,8 @@
 ;select extended instruction set
 ;.P02X
 
+.include "cut_down_waveforms.s"
+
 .segment "HEADER"
     .byte "NES"     ;identification string
     .byte $1A
@@ -169,29 +171,19 @@ nmi:
 .segment "ZEROPAGE"
 	DMC_output: .res 1 ; init to zero
 	DMC_2nd_output: .res 1 ; init to zero, only used once per frame
-	preserve_A: .res 1
-	preserve_X: .res 1	; might be unneeded
-	preserve_Y: .res 1
 	;LUT_offset: .res 1
+	
+	.ifndef(preserve_A)
+		preserve_A: .res 1
+		preserve_X: .res 1
+		preserve_Y: .res 1
+	.endif
 
 ; some of these could be made zeropage for speed
 ; maybe the volume variable should also hold the waveform
 .segment "BSS"
 	irq_counter: .res 1
 	irq_active: .res 1
-	square1_counter: .res 1	; incremented each IRQ
-	square1_divider: .res 1 ; determines wavelength
-	square1_volume: .res 1 ; volume is always "4-bit"
-	saw_counter: .res 1
-	saw_divider: .res 1
-	noise_counter: .res 1
-	noise_divider: .res 1
-	noise_volume: .res 1
-	lfsr: .res 1			; init to %10011001 or any non-zero
-	pulse_counter: .res 1
-	pulse_divider: .res 1
-	pulse_volume: .res 1
-
 
 .segment "DMC"
 DMC_wiggle_sample:
@@ -201,7 +193,7 @@ DMC_wiggle_sample:
 IRQ:
 	; preserve registers
 	sta preserve_A
-	; stx preserve_X
+	;stx preserve_X
 	sty preserve_Y
 
 	; set things up, as needed
@@ -211,13 +203,12 @@ IRQ:
 	sta $4011
 
 	; time a screen scroll if queued
+	;TODO
 	
-	
-	; wait for timing
-	ldy #22
-	:
-	dey
-	bne:-
+	; for now, wait for timing
+	.repeat 12
+		nop
+	.endrep
 	
 	;Acknowledge/reset IRQ
 	sei
@@ -234,118 +225,12 @@ IRQ:
 Calculate_next_DMC_offset:
 ;;;;
 
-	; init Y to hold new output
-	; preserve Y here instead?
-	ldy #0
+	; preserve X
+	stx preserve_X
 
-	;for now, skip to final waveform
-	;jmp noise_end
-
-	; Channels currently have set waveforms.
-	; Should that change?
-
-	; Generate Square Wave
-	lda square1_counter
-	sec
-	sbc #1					;C clear
-	bne:+
-		; reset counter
-		lda square1_divider
-		lsr
-		ora #$80 ; set up overflow
-		;C might be set, but A is minus, so ADC is skipped
-	:
-	bvc:+
-		; reset counter
-		lda square1_divider
-		lsr
-		adc #0	; handle odd lengths	;C clear
-	:
-	sta square1_counter
-	; if plus, add volume to output
-	bmi:+
-		tya
-		adc square1_volume
-		tay
-	:
-
-	; Generate Sawtooth
-	; has no volume control. Instead, volume varies by pitch
-	dec saw_counter
-	bne:+
-		lda saw_divider
-		sta saw_counter
-	:
-	lda saw_counter
-	alr #%00111100			;same as AND #i, then LSR 
-	lsr						; carry clear
-	adc identity_table, y	; could be "adc Y" macro
-	tay
-
-	; Generate Noise
-	dec noise_counter
-	bne:++
-		; reset counter
-		lda noise_divider		; Does this even need a counter?
-		sta noise_counter		; 4-bit counter seems like more than plenty,
-								; but none at all could work well enough for percussion
-		; galois lfsr
-		lda lfsr
-		lsr
-		bcc:+
-			eor #%11000011		; controling this could be useful*
-		:
-		sta lfsr
-	:
-	lda lfsr
-	bpl:+
-		tya
-		clc					
-		adc noise_volume
-		tay
-	:
-
-	; What if there was a noise that made a thin pulse for
-	; each rising/falling edge of the lfsr?
-	; pseudo high-pass noise? Probably not too useful tho...
-
-	;*Technically, since the LFSR's initial state is controllable, if the EOR 
-	; could be controlled, then changing just those two values would allow you 
-	; to control the pitch of the output and match any possible period length.
-	; If the divider is removed, simplifying the code, this would be a good
-	; way to add back control with minimal effeciency loss.
-
-
-	; Generate Thin Pulse
-	dec pulse_counter
-	bne:+
-		; reset counter
-		lda pulse_divider
-		sta pulse_counter
-
-		; add volume to output
-		tya
-		;C clear from previous ADC
-		adc pulse_volume 
-		tay		; maybe skip to output instead?
-				; no need to move Y back and forth
-	:
-
-	; prepare for output
-normal_output:
-	tya
-	asl
-	and #%01111110		; might be unneeded...
-	sta DMC_output
-
-	; handle double buffered update
-
-	; restore registers
-	lda preserve_A
-	; ldx preserve_X
-	ldy preserve_Y
-
-	rti
+	; Call jump table thing
+	jmp Iterate_channels
+	
 ; end of IRQ
 
 

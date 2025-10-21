@@ -1,4 +1,4 @@
-; This code is at some point called during the IRQ routine, whenever the sound engine is interated
+; This Code is at some point called during the IRQ routine, whenever the sound engine is interated
 
 ; This version cuts down the waveform count to four: Pulse, Linear (saw/tri), LFSR, and Sample (Page)
 ; All waveforms are simulateously selected by a jump table, where the table holds all 256 possible combinations of channels
@@ -20,22 +20,29 @@
 ; - skip "tay" when last channel (accumulator pushed to $4011 anyway)
 
 .segment "ZEROPAGE"
-waveforms: .res 1
-channel_vars: .res 20
+	waveforms: .res 1
+	channel_vars: .res 20
+
+	.ifndef(preserve_A)
+		preserve_A: .res 1
+		preserve_X: .res 1
+		preserve_Y: .res 1
+	.endif
 
 ;Constants for function variables
-divider 	= 0
-counter 	= 1
-volume 		= 2
-lfsr 		= 3
-lfsr_tap	= 4
+	divider 	= 0
+	counter 	= 1
+	volume 		= 2
+	lfsr 		= 3
+	lfsr_tap	= 4
+
 
 .segment "CODE"
 Iterate_channels:
 ;Waveform Select Jump
-	; 25 cycles
-	;ldy #0			; no need to clear Y, since first channel overrides it w/o reading Y
-	;clc			; not always needed, should be handled after jump, if at all
+	; 8+25 cycles
+	ldy #0			; no need to clear Y, since first channel overrides it w/o reading Y
+	clc				; not always needed, should be handled after jump, if at all
 	ldx waveforms
 	lda jump_table_lo,x
 	pha
@@ -45,13 +52,10 @@ Iterate_channels:
 	rts
 
 
-
 ;Generate massive table of possible channel combos
 .segment "CODE80"
-channel .set 0
-
 ;Define each output function
-.macro code0
+.macro wave0
 	; Generate Pulse Wave, optimized w/ noise vars (divider, counter, volume, lfsr, lfsr_tap)
 		; lfsr stores state as a shift register. lfsr_tap holds high divider.
 		; 14?,20? - 32?,34 cycles (assumes zeropage)
@@ -81,7 +85,7 @@ channel .set 0
 		:
 .endmacro
 
-.macro code1
+.macro wave1
 	; Generate Linear Wave (Triangle/Sawtooth)
 		; lfsr_tap holds falling value (+), while lfsr hold rising value (-).
 		; Since their value is subtracted, they must be positive and negative, respectively
@@ -108,7 +112,7 @@ channel .set 0
 		tay
 .endmacro
 
-.macro code2
+.macro wave2
 	; Generate thin lfsr
 		; 8 - 24,34 cycles (assumes zeropage)
 		; 20 bytes
@@ -129,7 +133,7 @@ channel .set 0
 		:
 .endmacro
 
-.macro code3
+.macro wave3
 	; Generate Page Sample
 		;samples are raw 4-bit, the sound engine must also manually end playback either with a new waveform or a blank sample
 		; divider holds state. counter holds low byte of sample address, while volume holds the high byte
@@ -140,13 +144,13 @@ channel .set 0
 		asl divider+channel
 		bcs @read_high
 	;read_low:
-			lda (counter+channel, X)
+			lda (lfsr+channel, X)
 			and #%00001111
-			inc counter+channel
+			inc lfsr+channel
 			jmp @output_volume
 	@read_high:
 			inc divider+channel
-			lda (counter+channel, X)
+			lda (lfsr+channel, X)
 			lsr
 			lsr
 			lsr
@@ -163,20 +167,26 @@ channel .set 0
 	.repeat 4, L
 	.ident(.sprintf("func%d%d%d%d", I, J, K, L)):
 		channel .set 0*5
-		.ident(.sprintf("code%d", I))
+		.ident(.sprintf("wave%d", I))
 		channel .set 1*5
-		.ident(.sprintf("code%d", J))
+		.ident(.sprintf("wave%d", J))
 		channel .set 2*5
-		.ident(.sprintf("code%d", K))
+		.ident(.sprintf("wave%d", K))
 		channel .set 3*5
-		.ident(.sprintf("code%d", L))
+		.ident(.sprintf("wave%d", L))
 	;Output to DPCM
-		; run at the end of each set of waveforms
-		; 10 cycles
+		; 8+2 cycles
 		tya		; Could technically be removed if macros are changed (LFSR can't be, in this case)
 		asl
 		and #%01111110
 		sta $4011
+		
+		; restore registers
+		; 9 cycles
+		lda preserve_A
+		ldx preserve_X
+		ldy preserve_Y
+
 		rti
 	.endrepeat
 	.endrepeat
