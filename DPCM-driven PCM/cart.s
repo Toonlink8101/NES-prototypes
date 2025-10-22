@@ -1,7 +1,7 @@
 ;select extended instruction set
 ;.P02X
 
-.include "cut_down_waveforms.s"
+.include "Indirect_jump_waveforms.s"
 
 .segment "HEADER"
     .byte "NES"     ;identification string
@@ -207,7 +207,6 @@ IRQ:
 	sta $4015
 	cli
 
-
 	; Timing here on out is no longer strict
 
 ;;;;
@@ -217,7 +216,7 @@ Calculate_next_DMC_offset:
 	; preserve X
 	stx preserve_X
 
-	; Call jump table thing
+	; Iterate software channels
 	jmp Iterate_channels
 	
 ; end of IRQ
