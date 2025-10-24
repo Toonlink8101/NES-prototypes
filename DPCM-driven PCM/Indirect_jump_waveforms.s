@@ -28,6 +28,8 @@
 ; 7+31+5+35+5+35+5+33+3+6+9+6
 ; = 180 total cycles
 
+.globalzp preserve_A, preserve_X, preserve_Y, DMC_output
+
 .segment "BSS"
 	waveforms: .res 8
 
@@ -56,6 +58,7 @@ Iterate_channels:
 
 
 ;;; Channel 1
+channel .set 0*5
 
 Pulse_chan1:
 ; Generate Pulse Wave, optimized w/ noise vars (divider, counter, volume, lfsr, lfsr_tap)
@@ -69,13 +72,13 @@ Pulse_chan1:
 		;if state was low
 		bcs:+
 			lda divider+channel
-			jmp reset_end
+			jmp @reset_end
 		:
 		;if state was high
 			clc
 			inc lfsr+channel
 			lda lfsr_tap+channel
-reset_end:
+@reset_end:
 		sta counter+channel
 	:
 	bit lfsr+channel
@@ -117,7 +120,7 @@ Linear_chan1:
 	jmp (waveforms+chan2)
 
 
-Thin_LFSR_chan1:
+LFSR_chan1:
 ; Generate thin lfsr
 	; 8? - 24?,28 cycles (assumes zeropage)
 	; 20? bytes
@@ -140,7 +143,7 @@ Thin_LFSR_chan1:
 	jmp (waveforms+chan2)
 
 
-Page_sample_chan1:
+Sample_chan1:
 ; Generate Page Sample
 	;samples are raw 4-bit, the sound engine must also manually end playback either with a new waveform or a blank sample
 	; divider holds state. counter holds low byte of sample address, while volume holds the high byte
@@ -149,7 +152,7 @@ Page_sample_chan1:
 	; 22? bytes
 	ldx #0
 	asl divider+channel
-	bcs read_high
+	bcs @read_high
 ;read_low:
 		lda (lfsr+channel, X)
 		and #%00001111
@@ -169,6 +172,7 @@ Page_sample_chan1:
 
 
 ;;; Channel 2
+channel .set 1*5
 
 Pulse_chan2:
 ; Generate Pulse Wave, optimized w/ noise vars (divider, counter, volume, lfsr, lfsr_tap)
@@ -182,13 +186,13 @@ Pulse_chan2:
 		;if state was low
 		bcs:+
 			lda divider+channel
-			jmp reset_end
+			jmp @reset_end
 		:
 		;if state was high
 			clc
 			inc lfsr+channel
 			lda lfsr_tap+channel
-reset_end:
+@reset_end:
 		sta counter+channel
 	:
 	bit lfsr+channel
@@ -211,7 +215,7 @@ Linear_chan2:
 	; 29 bytes
 	lda counter+channel
 	sbc volume+channel		; fix! set C
-	bvc:+
+	bpl:+									;TODO: change all to match this!!!
 		ldx lfsr+channel
 		stx volume+channel
 		lda #0
@@ -229,7 +233,7 @@ Linear_chan2:
 	jmp (waveforms+chan3)
 
 
-Thin_LFSR_chan2:
+LFSR_chan2:
 ; Generate thin lfsr
 	; 8 - 24,34 cycles (assumes zeropage)
 	; 20 bytes
@@ -251,7 +255,7 @@ Thin_LFSR_chan2:
 	jmp (waveforms+chan3)
 
 
-Page_sample_chan2:
+Sample_chan2:
 ; Generate Page Sample
 	;samples are raw 4-bit, the sound engine must also manually end playback either with a new waveform or a blank sample
 	; divider holds state. counter holds low byte of sample address, while volume holds the high byte
@@ -260,7 +264,7 @@ Page_sample_chan2:
 	; 22 bytes
 	ldx #0
 	asl divider+channel
-	bcs read_high
+	bcs @read_high
 ;read_low:
 		lda (lfsr+channel, X)
 		and #%00001111
@@ -280,6 +284,7 @@ Page_sample_chan2:
 
 
 ;;; Channel 3
+channel .set 2*5
 
 Pulse_chan3:
 ; Generate Pulse Wave, optimized w/ noise vars (divider, counter, volume, lfsr, lfsr_tap)
@@ -293,13 +298,13 @@ Pulse_chan3:
 		;if state was low
 		bcs:+
 			lda divider+channel
-			jmp reset_end
+			jmp @reset_end
 		:
 		;if state was high
 			clc
 			inc lfsr+channel
 			lda lfsr_tap+channel
-reset_end:
+@reset_end:
 		sta counter+channel
 	:
 	bit lfsr+channel
@@ -339,7 +344,7 @@ Linear_chan3:
 	jmp (waveforms+chan4)
 
 
-Thin_LFSR_chan3:
+LFSR_chan3:
 ; Generate thin lfsr
 	; 8 - 24,34 cycles (assumes zeropage)
 	; 20 bytes
@@ -361,7 +366,7 @@ Thin_LFSR_chan3:
 	jmp (waveforms+chan4)
 
 
-Page_sample_chan3:
+Sample_chan3:
 ; Generate Page Sample
 	;samples are raw 4-bit, the sound engine must also manually end playback either with a new waveform or a blank sample
 	; divider holds state. counter holds low byte of sample address, while volume holds the high byte
@@ -370,7 +375,7 @@ Page_sample_chan3:
 	; 22 bytes
 	ldx #0
 	asl divider+channel
-	bcs read_high
+	bcs @read_high
 ;read_low:
 		lda (lfsr+channel, X)
 		and #%00001111
@@ -390,6 +395,7 @@ Page_sample_chan3:
 
 
 ;;; Channel 4
+channel .set 3*5
 
 Pulse_chan4:
 ; Generate Pulse Wave, optimized w/ noise vars (divider, counter, volume, lfsr, lfsr_tap)
@@ -403,13 +409,13 @@ Pulse_chan4:
 		;if state was low
 		bcs:+
 			lda divider+channel
-			jmp reset_end
+			jmp @reset_end
 		:
 		;if state was high
 			clc
 			inc lfsr+channel
 			lda lfsr_tap+channel
-reset_end:
+@reset_end:
 		sta counter+channel
 	:
 	tya
@@ -449,7 +455,7 @@ Linear_chan4:
 	jmp Output_to_DPCM
 
 
-Thin_LFSR_chan4:
+LFSR_chan4:
 ; Generate thin lfsr
 	; 8? - 24?,32 (w/o jump) cycles (assumes zeropage)
 	; 20? bytes
@@ -471,7 +477,7 @@ Thin_LFSR_chan4:
 	tya
 	jmp Output_to_DPCM
 
-Page_sample_chan4:
+Sample_chan4:
 ; Generate Page Sample
 	;samples are raw 4-bit, the sound engine must also manually end playback either with a new waveform or a blank sample
 	; divider holds state. counter holds low byte of sample address, while volume holds the high byte
@@ -480,7 +486,7 @@ Page_sample_chan4:
 	; 22? bytes
 	ldx #0
 	asl divider+channel
-	bcs read_high
+	bcs @read_high
 ;read_low:
 		lda (lfsr+channel, X)
 		and #%00001111
@@ -505,9 +511,10 @@ Page_sample_chan4:
 
 Output_to_DPCM:
 ;Output to DPCM
-	; 6 cycles
+	; 6+2 cycles
 	asl
-	sta $4011
+	;and %01111110	;shouldn't be necessary
+	sta DMC_output
 	
 	; restore registers
 	; 9 cycles

@@ -119,7 +119,43 @@ loadsprites:
 	sta $4013
 
 ; init IRQ audio channels
-	;TODO
+	lda #<Pulse_chan1
+	ldx #>Pulse_chan1
+	sta waveforms+0
+	stx waveforms+1
+	
+	channel .set 0*5
+	
+	lda #<Linear_chan2
+	ldx #>Linear_chan2
+	sta waveforms+2
+	stx waveforms+3
+	
+	channel .set 1*5
+	lda #$20
+	sta channel_vars+channel+divider
+	lda #1
+	sta channel_vars+channel+counter
+	lda #1
+	sta channel_vars+channel+volume
+	lda #$FE
+	sta channel_vars+channel+lfsr
+	lda #$1
+	sta channel_vars+channel+lfsr_tap
+	
+	lda #<Pulse_chan3
+	ldx #>Pulse_chan3
+	sta waveforms+4
+	stx waveforms+5
+	
+	channel .set 2*5
+	
+	lda #<Pulse_chan4
+	ldx #>Pulse_chan4
+	sta waveforms+6
+	stx waveforms+7
+	
+	channel .set 3*5
 
 ; trigger DMC
 	sei
