@@ -94,18 +94,17 @@ Pulse_chan1:
 
 Linear_chan1:
 ; Generate Linear Wave (Triangle/Sawtooth)
-	; lfsr_tap holds falling value (+), while lfsr hold rising value (-).
-	; Since their value is subtracted, they must be positive and negative, respectively
+	; lfsr_tap holds falling value (-), while lfsr hold rising value (+).
 	; period ~=~ ciel(divider / lfsr) + ciel(divider / lfsr_tap)
 	; setting lfsr == divider and lfsr_tap == -1 results in a sawtooth
-	; 28? - 33?,31 (assumes zeropage)
-	; 29? bytes
+	; 28 - 33,35 (assumes zeropage)
+	; 29 bytes
 	lda counter+channel
-	sbc volume+channel		; fix! set C
-	bvc:+
+	adc volume+channel
+	bpl:+
 		ldx lfsr+channel
 		stx volume+channel
-		lda #0
+		lda #8
 	:
 	sta counter+channel
 	cmp divider+channel
@@ -207,18 +206,17 @@ Pulse_chan2:
 
 Linear_chan2:
 ; Generate Linear Wave (Triangle/Sawtooth)
-	; lfsr_tap holds falling value (+), while lfsr hold rising value (-).
-	; Since their value is subtracted, they must be positive and negative, respectively
+	; lfsr_tap holds falling value (-), while lfsr hold rising value (+).
 	; period ~=~ ciel(divider / lfsr) + ciel(divider / lfsr_tap)
 	; setting lfsr == divider and lfsr_tap == -1 results in a sawtooth
 	; 28 - 33,35 (assumes zeropage)
 	; 29 bytes
 	lda counter+channel
-	sbc volume+channel		; fix! set C
-	bpl:+									;TODO: change all to match this!!!
+	adc volume+channel
+	bpl:+
 		ldx lfsr+channel
 		stx volume+channel
-		lda #0
+		lda #8
 	:
 	sta counter+channel
 	cmp divider+channel
@@ -318,18 +316,17 @@ Pulse_chan3:
 
 Linear_chan3:
 ; Generate Linear Wave (Triangle/Sawtooth)
-	; lfsr_tap holds falling value (+), while lfsr hold rising value (-).
-	; Since their value is subtracted, they must be positive and negative, respectively
+	; lfsr_tap holds falling value (-), while lfsr hold rising value (+).
 	; period ~=~ ciel(divider / lfsr) + ciel(divider / lfsr_tap)
 	; setting lfsr == divider and lfsr_tap == -1 results in a sawtooth
 	; 28 - 33,35 (assumes zeropage)
 	; 29 bytes
 	lda counter+channel
-	sbc volume+channel		; fix! set C
-	bvc:+
+	adc volume+channel
+	bpl:+
 		ldx lfsr+channel
 		stx volume+channel
-		lda #0
+		lda #8
 	:
 	sta counter+channel
 	cmp divider+channel
@@ -429,18 +426,17 @@ Pulse_chan4:
 
 Linear_chan4:
 ; Generate Linear Wave (Triangle/Sawtooth)
-	; lfsr_tap holds falling value (+), while lfsr hold rising value (-).
-	; Since their value is subtracted, they must be positive and negative, respectively
+	; lfsr_tap holds falling value (-), while lfsr hold rising value (+).
 	; period ~=~ ciel(divider / lfsr) + ciel(divider / lfsr_tap)
 	; setting lfsr == divider and lfsr_tap == -1 results in a sawtooth
-	; 28? - 33?,33 (assumes zeropage)
-	; 29? bytes
+	; 28 - 33,35 (assumes zeropage)
+	; 29 bytes
 	lda counter+channel
-	sbc volume+channel		; fix! set C
-	bvc:+
+	adc volume+channel
+	bpl:+
 		ldx lfsr+channel
 		stx volume+channel
-		lda #0
+		lda #8
 	:
 	sta counter+channel
 	cmp divider+channel

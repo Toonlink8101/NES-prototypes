@@ -132,15 +132,15 @@ loadsprites:
 	stx waveforms+3
 	
 	channel .set 1*5
-	lda #$20
+	lda #60
 	sta channel_vars+channel+divider
 	lda #1
 	sta channel_vars+channel+counter
 	lda #1
 	sta channel_vars+channel+volume
-	lda #$FE
+	lda #3
 	sta channel_vars+channel+lfsr
-	lda #$1
+	lda #(12 ^$FF)+1
 	sta channel_vars+channel+lfsr_tap
 	
 	lda #<Pulse_chan3
