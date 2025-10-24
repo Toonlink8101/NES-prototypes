@@ -132,16 +132,16 @@ loadsprites:
 	stx waveforms+3
 	
 	channel .set 1*5
-	lda #60
-	sta channel_vars+channel+divider
-	lda #1
-	sta channel_vars+channel+counter
-	lda #1
-	sta channel_vars+channel+volume
-	lda #3
-	sta channel_vars+channel+lfsr
-	lda #(12 ^$FF)+1
-	sta channel_vars+channel+lfsr_tap
+	;lda #60
+	;sta channel_vars+channel+divider
+	;lda #1
+	;sta channel_vars+channel+counter
+	;lda #1
+	;sta channel_vars+channel+volume
+	;lda #3
+	;sta channel_vars+channel+lfsr
+	;lda #(12 ^$FF)+1
+	;sta channel_vars+channel+lfsr_tap
 	
 	lda #<Pulse_chan3
 	ldx #>Pulse_chan3
@@ -150,12 +150,18 @@ loadsprites:
 	
 	channel .set 2*5
 	
-	lda #<Pulse_chan4
-	ldx #>Pulse_chan4
+	lda #<Sample_chan4
+	ldx #>Sample_chan4
 	sta waveforms+6
 	stx waveforms+7
 	
 	channel .set 3*5
+	lda #$55
+	sta channel_vars+channel+divider
+	lda #<Snare_sample
+	sta channel_vars+channel+lfsr
+	lda #>Snare_sample
+	sta channel_vars+channel+lfsr_tap
 
 ; trigger DMC
 	sei
