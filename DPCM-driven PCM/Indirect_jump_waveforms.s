@@ -120,9 +120,9 @@ Linear_chan1:
 
 
 LFSR_chan1:
-; Generate thin lfsr
-	; 8? - 24?,28 cycles (assumes zeropage)
-	; 20? bytes
+; Generate LFSR
+	; 16,20 - 24,32 cycles (assumes zeropage)
+	; 36? bytes
 	dec counter+channel
 	bne:++
 		; reset counter
@@ -135,9 +135,18 @@ LFSR_chan1:
 			sta lfsr+channel
 			;tya
 			;adc volume+channel
-			lda volume
+			lda volume+channel
 			tay
 		:
+		jmp (waveforms+chan4)	;TODO: copy this elsewhere
+	:
+	lda lfsr+channel
+	and #%00000001
+	bne:+
+		;tya
+		;adc volume+channel
+		lda volume+channel
+		tay
 	:
 	jmp (waveforms+chan2)
 
@@ -232,9 +241,9 @@ Linear_chan2:
 
 
 LFSR_chan2:
-; Generate thin lfsr
-	; 8 - 24,34 cycles (assumes zeropage)
-	; 20 bytes
+; Generate LFSR
+	; 16,22 - 24,34 cycles (assumes zeropage)
+	; 36 bytes
 	dec counter+channel
 	bne:++
 		; reset counter
@@ -249,6 +258,14 @@ LFSR_chan2:
 			adc volume+channel
 			tay
 		:
+		jmp (waveforms+chan3)	;TODO: copy this elsewhere
+	:
+	lda lfsr+channel
+	and #%00000001
+	bne:+
+		tya
+		adc volume+channel
+		tay
 	:
 	jmp (waveforms+chan3)
 
@@ -342,9 +359,9 @@ Linear_chan3:
 
 
 LFSR_chan3:
-; Generate thin lfsr
-	; 8 - 24,34 cycles (assumes zeropage)
-	; 20 bytes
+; Generate LFSR
+	; 16,22 - 24,34 cycles (assumes zeropage)
+	; 36 bytes
 	dec counter+channel
 	bne:++
 		; reset counter
@@ -359,6 +376,14 @@ LFSR_chan3:
 			adc volume+channel
 			tay
 		:
+		jmp (waveforms+chan4)	;TODO: copy this elsewhere
+	:
+	lda lfsr+channel
+	and #%00000001
+	bne:+
+		tya
+		adc volume+channel
+		tay
 	:
 	jmp (waveforms+chan4)
 
@@ -452,9 +477,9 @@ Linear_chan4:
 
 
 LFSR_chan4:
-; Generate thin lfsr
-	; 8? - 24?,32 (w/o jump) cycles (assumes zeropage)
-	; 20? bytes
+; Generate LFSR
+	; 16?,22? - 24,34 cycles (assumes zeropage)
+	; 36? bytes
 	dec counter+channel
 	bne:++
 		; reset counter
@@ -467,8 +492,16 @@ LFSR_chan4:
 			sta lfsr+channel
 			tya
 			adc volume+channel
-			jmp Output_to_DPCM
+			tay
 		:
+		jmp Output_to_DPCM
+	:
+	lda lfsr+channel
+	and #%00000001
+	bne:+
+		tya
+		adc volume+channel
+		jmp Output_to_DPCM
 	:
 	tya
 	jmp Output_to_DPCM
