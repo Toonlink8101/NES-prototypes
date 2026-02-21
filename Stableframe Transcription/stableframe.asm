@@ -404,16 +404,16 @@ button_b_reset:
 
 table_palette:
 	;background
-	.byte $0f, $21, $0d, $8c
-	.byte $0f, $21, $14, $38
-	.byte $0f, $21, $14, $38 
-	.byte $0f, $21, $14, $0f
+	.byte $21, $21, $0d, $8c
+	.byte $21, $21, $14, $38
+	.byte $21, $21, $14, $38 
+	.byte $21, $21, $14, $0f
 	
 	;sprites
-	.byte $0f, $21, $11, $31
-	.byte $0f, $21, $11, $31
-	.byte $0f, $21, $11, $31
-	.byte $0f, $21, $11, $31
+	.byte $21, $21, $11, $31
+	.byte $21, $21, $11, $31
+	.byte $21, $21, $11, $31
+	.byte $21, $21, $11, $31
 	
 .org DMC_SAMPLE_ADDR
 
