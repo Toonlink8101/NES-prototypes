@@ -15,8 +15,12 @@
 .segment "OAM"
 oam: .res 256        ; sprite OAM data to be uploaded by DMA
 
+.segment "BSS"
+temp: .res 1
+
 .segment "ZEROPAGE"
-temp:    .res 1      ;reserves 1 byte of memory
+zp_temp:    .res 1      ;reserves 1 byte of memory
+irq_counter: .res 1	
 
 .segment "CODE"
 reset:
@@ -117,6 +121,10 @@ loadsprites:
 	lda #0
 	sta $4011
 	sta $4013
+	
+;init irq counter
+	lda #62
+	sta irq_counter
 
 ; init IRQ audio channels
 	lda #<Pulse_chan1
@@ -125,6 +133,16 @@ loadsprites:
 	stx waveforms+1
 	
 	channel .set 0*5
+	lda #10
+	sta channel_vars+channel+divider
+	lda #0
+	sta channel_vars+channel+counter
+	lda #$0
+	sta channel_vars+channel+volume
+	lda #$AA
+	sta channel_vars+channel+lfsr
+	lda #10
+	sta channel_vars+channel+lfsr_tap
 	
 	lda #<Linear_chan2
 	ldx #>Linear_chan2
@@ -136,8 +154,8 @@ loadsprites:
 	;sta channel_vars+channel+divider
 	;lda #1
 	;sta channel_vars+channel+counter
-	;lda #1
-	;sta channel_vars+channel+volume
+	lda #0
+	sta channel_vars+channel+volume
 	;lda #3
 	;sta channel_vars+channel+lfsr
 	;lda #(12 ^$FF)+1
@@ -149,19 +167,21 @@ loadsprites:
 	stx waveforms+5
 	
 	channel .set 2*5
-	lda #4
-	sta channel_vars+channel+divider
-	lda #1
-	sta channel_vars+channel+counter
-	lda #$F
+	;lda #4
+	;sta channel_vars+channel+divider
+	;lda #1
+	;sta channel_vars+channel+counter
+	lda #$0
 	sta channel_vars+channel+volume
-	lda #1
-	sta channel_vars+channel+lfsr
-	lda #%11100001
-	sta channel_vars+channel+lfsr_tap
+	;lda #1
+	;sta channel_vars+channel+lfsr
+	;lda #%11100001
+	;sta channel_vars+channel+lfsr_tap
 	
-	lda #<Sample_chan4
-	ldx #>Sample_chan4
+	;lda #<Sample_chan4
+	;ldx #>Sample_chan4
+	lda #<LFSR_chan4
+	ldx #>LFSR_chan4
 	sta waveforms+6
 	stx waveforms+7
 	
@@ -183,10 +203,12 @@ loadsprites:
 
 
     loop_forever:
-        lda #0
-		sta temp
-		bit temp
-		beq loop_forever
+		ldx #0
+		stx zp_temp
+		bit zp_temp
+		inc temp, X
+		bne loop_forever
+		jmp loop_forever
 		
 nmi:
 	bit irq_active
@@ -223,7 +245,6 @@ nmi:
 ; some of these could be made zeropage for speed
 ; maybe the volume variable should also hold the waveform
 .segment "BSS"
-	irq_counter: .res 1
 	irq_active: .res 1
 
 .segment "DMC"
@@ -234,22 +255,46 @@ DMC_wiggle_sample:
 IRQ:
 	; preserve registers
 	sta preserve_A
-	;stx preserve_X
-	sty preserve_Y
+	stx preserve_X
+	;sty preserve_Y
 
 	; set things up, as needed
 
-	; time a write to DMC_output from previous irq
-	lda DMC_output
-	sta $4011
+	; update irq count
+	dec irq_counter
+	
+	; branch for vblank routine
+	bne:+ 
+		;prep for v-blank
+		;jmp ???
+		
+		;comment this out
+		jmp Psuedo_vblank
+	:
 
-	; time a screen scroll if queued
+	;load slower DMC frequency
+	ldx irq_counter
+	lda irq_freq_table, X
+	sta $4010
+	
+	;time a screen scroll if queued
 	;TODO
 	
 	; for now, wait for timing
-	.repeat 12
+	; 18*2 = 36 cycles
+	.repeat 18
 		nop
 	.endrep
+	
+output_dmc:
+	
+	; time a write to DMC_output from previous irq
+	lda DMC_output
+	sta $4011
+	
+	;load fast DMC frequency
+	lda #%10001111
+	sta $4010
 	
 	;Acknowledge/reset IRQ
 	sei
@@ -265,12 +310,45 @@ IRQ:
 Calculate_next_DMC_offset:
 ;;;;
 
-	; preserve X
-	stx preserve_X
+	; preserve Y
+	sty preserve_Y
 
 	; Iterate software channels
 	jmp Iterate_channels
+
+;;;
+Psuedo_vblank:
+;;;
+
+	; reset counter
+	lda #1+64+64+2
+	sta irq_counter
 	
+	;output to DMC $4011?
+	
+	;flag for debug
+	bit $2002
+	
+	; simulate OAM DMA cycles
+	; burns cycles, reading $2002 upon finishing
+	ldx #102
+:
+	dex
+	bne:-
+	bit $2002
+	
+	;output to DMC $4011?
+	
+	;flag vblank?
+	
+	;manually restart IRQ routine
+	jmp IRQ
+
+;;;
+end_of_vblank:
+;;;
+
+
 ; end of IRQ
 
 
@@ -300,6 +378,9 @@ spritedata:
 	.byte $58, $18, %01000001, $88
 
 .segment "RODATA"
+
+.align 256
+
 identity_table:
 	.byte $00,$01,$02,$03,$04,$05,$06,$07,$08,$09,$0a,$0b,$0c,$0d,$0e,$0f
 	.byte $10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$1a,$1b,$1c,$1d,$1e,$1f
@@ -317,6 +398,70 @@ identity_table:
 	.byte $d0,$d1,$d2,$d3,$d4,$d5,$d6,$d7,$d8,$d9,$da,$db,$dc,$dd,$de,$df
 	.byte $e0,$e1,$e2,$e3,$e4,$e5,$e6,$e7,$e8,$e9,$ea,$eb,$ec,$ed,$ee,$ef
 	.byte $f0,$f1,$f2,$f3,$f4,$f5,$f6,$f7,$f8,$f9,$fa,$fb,$fc,$fd,$fe,$ff
+	
+irq_freq_table:
+	;shouldn't be read
+	.byte $80
+	
+	;frame 1
+	.byte $8D,$8E
+	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	.byte $8D,$8E
+	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	.byte $8D,$8E
+	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	.byte $8D,$8E
+	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	
+	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+		
+	;frame 2
+	.byte $8D,$8E
+	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	.byte $8D,$8E
+	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	.byte $8D,$8E
+	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	.byte $8D,$8E
+	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	
+	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8c,$8d
+	
+	; not in frames?
+	.byte $8d, $8f
+	
+	;frame 3
+	;.byte $8D,$8E
+	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	;.byte $8D,$8E
+	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	;.byte $8D,$8E
+	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	;.byte $8D,$8E
+	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	
+	;.byte $8D,$8E,$8E, $8D,$8E,$8D,   $8D,$8D
+	
+	
+	;.byte $8D, $8C, $8F, $8D, $8E, $8E
+	;.byte $8D, $8D, $8F, $8D, $8F, $8C
+	
+	
+
+	;shouldn't be read
+	.byte $80
+	
+	
+	;Rate   $0   $1   $2   $3   $4   $5   $6   $7     $8     $9     $A     $B     $C     $D     $E     $F
+	;NTSC  428, 380, 340, 320, 286, 254, 226, 214,   190,   160,   142,   128,   106,    84,    72,    54
+	;Difference								  		   ^-24-^ ^-30-^ ^-14-^ ^-22-^ ^-22-^ ^-12-^ ^-18-^
+	
 
 ;LUT_offset: .res 1
 .segment "VECTORS"

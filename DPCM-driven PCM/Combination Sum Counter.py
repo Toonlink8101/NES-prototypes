@@ -28,10 +28,10 @@ def combinator(tolerance, target, inputs):
 
 def main():
     #inputs = [20, 21, 23, 25, 26, 27, 30, 32, 34, 35, 40]
-    inputs = [34, 35, 40]
-    target = 111
+    inputs = [106,84,72]
+    target = 11642
 
-    tolerance = 30
+    tolerance = 1
 
     t_start = time.perf_counter()
     results = list(combinator(tolerance, target, inputs))

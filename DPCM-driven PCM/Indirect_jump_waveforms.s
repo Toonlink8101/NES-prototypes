@@ -550,6 +550,9 @@ Output_to_DPCM:
 	lda preserve_A
 	ldx preserve_X
 	ldy preserve_Y
+	
+	;for testing
+	;bit $2002
 
 	; 6 cycles
 	rti

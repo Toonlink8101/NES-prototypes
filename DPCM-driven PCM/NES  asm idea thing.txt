@@ -114,17 +114,23 @@ sta $4011
 ;;;;
 ;Types of mid-line scrolling
 ;;;;
-; 1. Fine X* (2 cycles before + 7 cycles after)
-; 2. Nametable, Coarse X/Y, and 0yy of fine Y (4+4)
-; 3. Coarse/fine X* (11+7)
-; 4. Nametable, Coarse X/Y, fine X*, and 0yy of fine Y (10+11)
-; 4b. If w=1, Coarse/Fine X/Y
+; 1. Fine X* (2 cycles before + 8 cycles after) [w/o reset: 2+4]
+; 2. Nametable, Coarse X/Y, and 0yy of fine Y (4+4) 
+; 3. Coarse/fine X* (12+8)	[12+4]
+; 4. Nametable, Coarse X/Y, fine X*, and 0yy of fine Y (10+12) [10+8]
+; 4b. If w=1, Coarse/Fine X/Y (10+8)
 ; 5. Full X/Y (16+8)
 ;
 ; *Note: options that end with a write to $2005 during hblank 
 ; can set up a delayed coarse X update that's triggered at the 
 ; end of the following scanline. These can also be used to set
 ; w to 1 for options that require that to work.
+
+; Note2: Writes to $2000 (nametable, BG pattern table, force v-blank, 
+; etc.) or $2001 (grayscale, color emphasis, etc.) are also possible, 
+; adding 6 cycle each. Even a type 5 write with both of these added writes
+; takes 36 cycles. Doing this every scanline with software sound running, 
+; uses roughly 50% of the CPU time, ignoring v-blank.
 
 ; 1. Scrolling only fine X, use a $2005 write with BIT $2002
 ; Note: this can also set up a delayed update to coarse X that triggers at the end of the following scanline
