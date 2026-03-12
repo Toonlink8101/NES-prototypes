@@ -49,6 +49,9 @@
 	chan4		= 6
 
 
+; Iterate software channels
+	; trashes A,X,Y
+	; returns with output in A
 .segment "CODE"
 Iterate_channels:
 ;Indirect jump to first channel
@@ -543,19 +546,15 @@ Output_to_DPCM:
 	; 6+2 cycles
 	asl
 	;and %01111110	;shouldn't be necessary
-	sta DMC_output
 	
-	; restore registers
-	; 9 cycles
-	lda preserve_A
-	ldx preserve_X
-	ldy preserve_Y
+	;sta DMC_output
+	; A holds output after returning
 	
 	;for testing
 	;bit $2002
 
 	; 6 cycles
-	rti
+	rts
 	
 	
 .segment "RODATA"

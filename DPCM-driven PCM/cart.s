@@ -21,6 +21,7 @@ temp: .res 1
 .segment "ZEROPAGE"
 zp_temp:    .res 1      ;reserves 1 byte of memory
 irq_counter: .res 1	
+clockslide_amount: .res 2
 
 .segment "CODE"
 reset:
@@ -125,6 +126,13 @@ loadsprites:
 ;init irq counter
 	lda #62
 	sta irq_counter
+	
+;init clockslide
+	lda clockslide_table
+	sta clockslide_amount
+	lda clockslide_table+1
+	sta clockslide_amount+1
+	
 
 ; init IRQ audio channels
 	lda #<Pulse_chan1
@@ -236,7 +244,7 @@ nmi:
 	
 .segment "ZEROPAGE"
 	DMC_output: .res 1 ; init to zero
-	DMC_2nd_output: .res 1 ; init to zero, only used once per frame
+	NMI_DMC_output: .res 1 ; init to zero, only used once per frame
 	preserve_A: .res 1
 	preserve_X: .res 1
 	preserve_Y: .res 1
@@ -256,7 +264,7 @@ IRQ:
 	; preserve registers
 	sta preserve_A
 	stx preserve_X
-	;sty preserve_Y
+	sty preserve_Y
 
 	; set things up, as needed
 
@@ -264,26 +272,54 @@ IRQ:
 	dec irq_counter
 	
 	; branch for vblank routine
-	bne:+ 
-		;prep for v-blank
-		;jmp ???
-		
-		;comment this out
+	bne:+
 		jmp Psuedo_vblank
 	:
+	
+	; load/check counter
+	ldx irq_counter
+	;cpx #1+64+1+64
+	
+	;bne:+
+	;	ldx #1	;clear zero flag
+	;	jmp Psuedo_vblank
+	;:
+	
+	cpx #1+64
+	
+	bne:+
+		ldx #1	;clear zero flag
+		jmp Psuedo_vblank
+	:
+	
+	;check for irq before vblank
+	;???
 
 	;load slower DMC frequency
-	ldx irq_counter
 	lda irq_freq_table, X
 	sta $4010
+	
+	;clockslide jump
+	;jmp (clockslide_amount)
+	;jmp (clockslide_table)
+	
+	;cmp #$C9
+	;cmp #$C9
+	;cmp #$C9
+	;cmp #$C9
+	;cmp $EA
+clockslide:
 	
 	;time a screen scroll if queued
 	;TODO
 	
 	; for now, wait for timing
-	; 18*2 = 36 cycles
-	.repeat 18
+	; 2*8 + 4*3 = 16 + 12 = 28 cycles
+	.repeat 8
 		nop
+	.endrepeat
+	.repeat 3
+		bit $2002
 	.endrep
 	
 output_dmc:
@@ -304,45 +340,80 @@ output_dmc:
 	sta $4015
 	cli
 
+	
 	; Timing here on out is no longer strict
-
-;;;;
-Calculate_next_DMC_offset:
-;;;;
-
-	; preserve Y
-	sty preserve_Y
+	
+	;set up next clockslide
+	txa
+	asl
+	tax
+	lda clockslide_table, X
+	sta clockslide_amount
+	inx
+	lda clockslide_table, X
+	sta clockslide_amount+1
+	
 
 	; Iterate software channels
-	jmp Iterate_channels
+	; trashes A,X,Y
+	; returns with output in A
+	jsr Iterate_channels
+	
+	sta DMC_output
+	
+	; restore registers
+	; 9 cycles
+	lda preserve_A
+	ldx preserve_X
+	ldy preserve_Y
+	
+	rti
 
 ;;;
 Psuedo_vblank:
 ;;;
 
-	; reset counter
-	lda #1+64+64+2
-	sta irq_counter
+	; conditionally reset counter
+	bne:+
+		lda #1+64+1+64;+1+64+1;+2
+		sta irq_counter
+	:
 	
 	;output to DMC $4011?
+	;lda NMI_DMC_output
+	;sta $4011
+	
+	;but for now
+	nop
+	nop
+	nop
 	
 	;flag for debug
-	bit $2002
+	;bit $2002
+	
+	;delay for timing
+	;.repeat 1
+	;	nop
+	;.endrepeat
 	
 	; simulate OAM DMA cycles
 	; burns cycles, reading $2002 upon finishing
-	ldx #102
-:
-	dex
-	bne:-
-	bit $2002
+	;ldx #102
+;:
+	;dex
+	;bne:-
+	;bit $2002
 	
-	;output to DMC $4011?
-	
+	; for real OAM DMA
+	sei
+    lda #>oam    ;OAM DMA
+    sta $4014
+	cli
+		
 	;flag vblank?
 	
-	;manually restart IRQ routine
-	jmp IRQ
+	;resume IRQ routine
+	jmp output_dmc
 
 ;;;
 end_of_vblank:
@@ -411,11 +482,14 @@ irq_freq_table:
 	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
 	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
 	.byte $8D,$8E
-	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8e,$8E
 	.byte $8D,$8E
-	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	.byte $8e,$8E,$8E, $8a,$8E,$8E,   $8e,$8E
 	
-	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	.byte $8d,$8E,$8E, $8b,$8f,$8b,   $87,$8d
+		
+	;shouldn't be read
+	.byte $80
 		
 	;frame 2
 	.byte $8D,$8E
@@ -425,43 +499,86 @@ irq_freq_table:
 	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
 	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
 	.byte $8D,$8E
+	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8e,$8E
+	.byte $8D,$8E
+	.byte $8f,$8E,$8E, $8a,$8E,$8E,   $8e,$8E
+	
+	.byte $8d,$8E,$8E, $8b,$8f,$8b,   $87,$8c
+	
+	;shouldn't be read
+	.byte $80
+	
+	;frame 3
+	.byte $8D,$8E
+	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
 	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
 	.byte $8D,$8E
 	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	.byte $8D,$8E
+	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8e,$8E
+	.byte $8D,$8E
+	.byte $8e,$8E,$8E, $8a,$8E,$8E,   $8e,$8E
 	
-	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8c,$8d
+	.byte $8d,$8E,$8E, $8b,$8f,$8b,   $87,$8d
 	
-	; not in frames?
-	.byte $8d, $8f
-	
-	;frame 3
-	;.byte $8D,$8E
-	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	;.byte $8D,$8E
-	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	;.byte $8D,$8E
-	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	;.byte $8D,$8E
-	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	
-	;.byte $8D,$8E,$8E, $8D,$8E,$8D,   $8D,$8D
-	
-	
-	;.byte $8D, $8C, $8F, $8D, $8E, $8E
-	;.byte $8D, $8D, $8F, $8D, $8F, $8C
-	
-	
-
 	;shouldn't be read
 	.byte $80
 	
 	
-	;Rate   $0   $1   $2   $3   $4   $5   $6   $7     $8     $9     $A     $B     $C     $D     $E     $F
-	;NTSC  428, 380, 340, 320, 286, 254, 226, 214,   190,   160,   142,   128,   106,    84,    72,    54
-	;Difference								  		   ^-24-^ ^-30-^ ^-14-^ ^-22-^ ^-22-^ ^-12-^ ^-18-^
+	;Rate  		  $0     $1     $2     $3     $4     $5     $6     $7     $8     $9     $A     $B     $C     $D     $E     $F
+	;NTSC 		 428,   380,   340,   320,   286,   254,   226,   214,   190,   160,   142,   128,   106,    84,    72,    54
+	;Difference	   ^-48-V ^-40-V ^-20-V ^-34-V ^-32-V ^-28-V ^-12-V ^-24-V ^-30-V ^-18-V ^-14-V ^-22-V ^-22-V ^-12-V ^-18-V
 	
+	
+	;Diff-diff		  ^--8--^^--20-^^--14-^^--2--^^--4--^^--16-^^--12-^^--0--^^--6--^^--16-^^--6--^^--0--^^--10-^^--6--^
+	; I must have been delusional when I wrote this
+	
+
+clockslide_table:
+	.word clockslide-0		;buffer
+	
+.repeat 2
+	.word clockslide-0, clockslide-0
+	
+	.word clockslide-0, clockslide-4, clockslide-4
+	.word clockslide-0, clockslide-4, clockslide-4
+	.word clockslide-0, clockslide-4
+		
+	.word clockslide-0, clockslide-4, clockslide-4
+	.word clockslide-0, clockslide-4, clockslide-4
+	.word clockslide-0, clockslide-4
+	
+	.word clockslide-0, clockslide-4
+	
+	.word clockslide-0, clockslide-4, clockslide-4
+	.word clockslide-0, clockslide-4, clockslide-4
+	.word clockslide-0, clockslide-4
+	
+	.word clockslide-0, clockslide-4, clockslide-4
+	.word clockslide-0, clockslide-4, clockslide-4
+	.word clockslide-0, clockslide-4
+	
+	.word clockslide-0, clockslide-4
+
+	.word clockslide-0, clockslide-4, clockslide-4
+	.word clockslide-0, clockslide-4, clockslide-4
+	.word clockslide-0, clockslide-4
+	
+	.word clockslide-0, clockslide-4
+	
+	.word clockslide-2, clockslide-2, clockslide-2
+	.word clockslide-2, clockslide-2, clockslide-2
+	.word clockslide-2, clockslide-2
+	
+	
+	.word clockslide-8, clockslide-8, clockslide-8
+	.word clockslide-8, clockslide-8, clockslide-8
+	.word clockslide-8, clockslide-8
+
+
+	.word clockslide-0		;buffer
+.endrepeat
 
 ;LUT_offset: .res 1
 .segment "VECTORS"
