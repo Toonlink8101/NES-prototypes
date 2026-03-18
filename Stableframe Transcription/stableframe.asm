@@ -357,6 +357,8 @@ vblank_from_irq:
 	lda zp_joypad_p0
 	and #BUTTON_B
 	bne button_b_reset
+	
+	bit $2002
 	rts
 	
 	;pressing left/right adjusts the "align" frame, for debugging
