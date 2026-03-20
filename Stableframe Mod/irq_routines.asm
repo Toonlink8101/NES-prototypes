@@ -41,6 +41,18 @@ IRQ_ADVANCE_COUNT .set IRQ_ADVANCE_COUNT + 1
         ; Acknowledge and reset IRQ.
         lda #APUSTATUS_ENABLE_DMC
         sta APUSTATUS
+		
+		;write output from last irq
+		;lda DMC_output
+		;sta $4011
+		
+		;iterate software sound channels
+		;stx zp_temp_x
+		;jsr Iterate_channels
+		;sta $4011
+		;ldx zp_temp_x
+
+		;bit $2002
 
         ; Restore registers.
         ldy zp_temp_y
@@ -79,6 +91,14 @@ irq_routine_one_step:
         ; Update DMC with P1 and P2 rate.
         IRQ_LDA_NEXT_BYTE
         sta DMCFREQ
+		
+		;iterate software sound channels
+		stx zp_temp_x
+		jsr Iterate_channels
+		sta $4011
+		sta $4011
+		sta $4011
+		ldx zp_temp_x
 
         IRQ_ADVANCE_LOOKUP
         IRQ_EXIT
@@ -108,6 +128,14 @@ irq_routine_two_step:
         IRQ_LDA_NEXT_BYTE
         sta DMCFREQ
         ; [=56]
+		
+		;iterate software sound channels
+		stx zp_temp_x
+		jsr Iterate_channels
+		sta $4011
+		sta $4011
+		sta $4011
+		ldx zp_temp_x
 
         IRQ_ADVANCE_LOOKUP
         IRQ_EXIT
@@ -130,9 +158,34 @@ irq_routine_vblank_start:
         lda #0
         sta PPUSCROLL
         sta PPUSCROLL
+		
+		; Acknowledge and reset IRQ.
+        lda #APUSTATUS_ENABLE_DMC
+        sta APUSTATUS
+		
+		;iterate software sound channels
+		stx zp_temp_x
+		jsr Iterate_channels
+		sta $4011
+		ldx zp_temp_x
 
         ; Evaluate any VBLANK logic in the main program.
         jsr vblank_from_irq
+
+		;iterate software sound channels
+		stx zp_temp_x
+		jsr Iterate_channels
+		sta $4011
+		ldx zp_temp_x
+		
+		;oam dma
+		;lda #>oam
+		;sta $4014
+		
+		;stx zp_temp_x
+		;jsr Iterate_channels
+		;sta $4011
+		;ldx zp_temp_x
 
         IRQ_ADVANCE_LOOKUP
         IRQ_EXIT
@@ -156,6 +209,14 @@ irq_routine_align_start:
         ; Manually set IRQ trampoline to point to "current frame" section.
         lda zp_irq_align_sequence
         sta zp_irq_lo
+		
+		;iterate software sound channels
+		stx zp_temp_x
+		jsr Iterate_channels
+		sta $4011
+		sta $4011
+		sta $4011
+		ldx zp_temp_x
 
         IRQ_EXIT
 
@@ -173,6 +234,14 @@ irq_routine_one_step_align:
         ; Set the IRQ trampoline to point to the start of the table again.
         lda #<irq_routines_table
         sta zp_irq_lo
+		
+		;iterate software sound channels
+		stx zp_temp_x
+		jsr Iterate_channels
+		sta $4011
+		sta $4011
+		sta $4011
+		ldx zp_temp_x
 
         IRQ_EXIT
 
@@ -198,6 +267,14 @@ irq_routine_two_step_align:
         ; Set the IRQ trampoline to point to the start of the table again.
         lda #<irq_routines_table
         sta zp_irq_lo
+		
+		;iterate software sound channels
+		stx zp_temp_x
+		jsr Iterate_channels
+		sta $4011
+		sta $4011
+		sta $4011
+		ldx zp_temp_x
 
         IRQ_EXIT
 
@@ -229,6 +306,12 @@ irq_routine_row_light:
         lda #DMCFREQ_IRQ_RATE54
         sta DMCFREQ
         ; [=39]
+		
+		;iterate software sound channels
+		stx zp_temp_x
+		jsr Iterate_channels
+		sta $4011
+		ldx zp_temp_x
 
         IRQ_ADVANCE_LOOKUP
         IRQ_EXIT
@@ -262,6 +345,12 @@ irq_routine_row_dark:
         lda #DMCFREQ_IRQ_RATE54
         sta DMCFREQ
         ; [=39]
+		
+		;iterate software sound channels
+		stx zp_temp_x
+		jsr Iterate_channels
+		sta $4011
+		ldx zp_temp_x
 
         IRQ_ADVANCE_LOOKUP
         IRQ_EXIT

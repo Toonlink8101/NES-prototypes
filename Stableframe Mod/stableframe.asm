@@ -6,6 +6,8 @@
 
 .include "nes.s"
 
+.include "software_channels.asm"
+
 ; Macros
 
     ;MACEXP_DFT  nomacro, noif
@@ -71,6 +73,9 @@
 		.endrepeat
     .endmacro
 
+.segment "OAM"
+oam: .res 256        ; sprite OAM data to be uploaded by DMA
+
 ; Game variables
 .segment "ZEROPAGE"
 	; IRQ trampoline
@@ -82,6 +87,8 @@
 	zp_temp_a: .res 1
 	zp_temp_y: .res 1
 	
+	zp_temp_x: .res 1
+	
 	; low byte of irq align sequence in the table
 	zp_irq_align_sequence: .res 1
 	
@@ -89,14 +96,18 @@
 	zp_joypad_p0: .res 1
 	zp_joypad_p1: .res 1
 	
+	;software channel variables
+	DMC_output: .res 1
+	
+	
 .segment "BSS"
 	ram_dmc_sync_display: .res 1
 	
 	;Constants
-	DMC_SAMPLE_ADDR = $FFC0
+	DMC_SAMPLE_ADDR = $C000;FFC0
 	
 	DEFAULT_PPUMASK = PPUMASK_BACKGROUNDENABLE | PPUMASK_SPRITEENABLE | PPUMASK_BACKGROUNDLEFT8PX | PPUMASK_SPRITELEFT8PX
-	DEFAULT_PPUCTRL = PPUCTRL_NAMETABLE2000 | PPUCTRL_SPRITEPATTERN | PPUCTRL_SPRITE16PXMODE | PPUCTRL_BACKGROUNDPATTERN
+	DEFAULT_PPUCTRL = PPUCTRL_NAMETABLE2000 | PPUCTRL_SPRITEPATTERN | PPUCTRL_SPRITE16PXMODE | PPUCTRL_BACKGROUNDPATTERN ;| PPUCTRL_VBLANKNMI
 	
 ;---prg start---
 
@@ -138,8 +149,8 @@ clear_internal_ram:
 	
 setup_oam:
 	;clear oam
-	lda #$02
-	sta OAMDMA
+    lda #>oam
+    sta $4014
 	
 setup_ppu:
 	;clear latch
@@ -272,6 +283,84 @@ setup_nametable:
 	lda #DEFAULT_PPUCTRL
 	sta PPUCTRL
 
+setup_software_sound:
+	lda #<Pulse_chan1
+	ldx #>Pulse_chan1
+	sta waveforms+0
+	stx waveforms+1
+	
+	channel .set 0*5
+	lda #0
+	sta channel_vars+channel+divider
+	lda #0
+	sta channel_vars+channel+counter
+	lda #$0
+	sta channel_vars+channel+volume
+	lda #$AA
+	sta channel_vars+channel+lfsr
+	lda #0
+	sta channel_vars+channel+lfsr_tap
+	
+	lda #<Pulse_chan2
+	ldx #>Pulse_chan2
+	sta waveforms+2
+	stx waveforms+3
+	
+	channel .set 1*5
+	lda #0
+	sta channel_vars+channel+divider
+	lda #0
+	sta channel_vars+channel+counter
+	lda #$0
+	sta channel_vars+channel+volume
+	lda #$AA
+	sta channel_vars+channel+lfsr
+	lda #0
+	sta channel_vars+channel+lfsr_tap
+	
+	lda #<LFSR_chan3
+	ldx #>LFSR_chan3
+	sta waveforms+4
+	stx waveforms+5
+	
+	channel .set 2*5
+	lda #4
+	sta channel_vars+channel+divider
+	lda #1
+	sta channel_vars+channel+counter
+	lda #$0
+	sta channel_vars+channel+volume
+	lda #0
+	sta channel_vars+channel+lfsr
+	lda #0;%11100001
+	sta channel_vars+channel+lfsr_tap
+	
+	;lda #<Sample_chan4
+	;ldx #>Sample_chan4
+	lda #<LFSR_chan4
+	ldx #>LFSR_chan4
+	sta waveforms+6
+	stx waveforms+7
+	
+	channel .set 3*5
+	;lda #$55
+	;sta channel_vars+channel+divider
+	;lda #<Snare_sample
+	;sta channel_vars+channel+lfsr
+	;lda #>Snare_sample
+	;sta channel_vars+channel+lfsr_tap
+	
+	lda #4
+	sta channel_vars+channel+divider
+	lda #1
+	sta channel_vars+channel+counter
+	lda #$0
+	sta channel_vars+channel+volume
+	lda #0
+	sta channel_vars+channel+lfsr
+	lda #0;%11100001
+	sta channel_vars+channel+lfsr_tap
+
 pre_sync:
 	;sync with vblank before writing to PPU
 :
@@ -358,7 +447,6 @@ vblank_from_irq:
 	and #BUTTON_B
 	bne button_b_reset
 	
-	bit $2002
 	rts
 	
 	;pressing left/right adjusts the "align" frame, for debugging
@@ -402,6 +490,11 @@ button_b_reset:
 	
 .segment "RODATA"
 
+.align 64
+
+DMC_wiggle_sample:
+	.byte $AA
+
 ; ---ppu palette table---
 
 table_palette:
@@ -417,11 +510,28 @@ table_palette:
 	.byte $21, $21, $11, $31
 	.byte $21, $21, $11, $31
 	
-.org DMC_SAMPLE_ADDR
 
-	.byte %10101010
+.align 256
 
-.reloc
+identity_table:
+	.byte $00,$01,$02,$03,$04,$05,$06,$07,$08,$09,$0a,$0b,$0c,$0d,$0e,$0f
+	.byte $10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$1a,$1b,$1c,$1d,$1e,$1f
+	.byte $20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$2a,$2b,$2c,$2d,$2e,$2f
+	.byte $30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$3a,$3b,$3c,$3d,$3e,$3f
+	.byte $40,$41,$42,$43,$44,$45,$46,$47,$48,$49,$4a,$4b,$4c,$4d,$4e,$4f
+	.byte $50,$51,$52,$53,$54,$55,$56,$57,$58,$59,$5a,$5b,$5c,$5d,$5e,$5f
+	.byte $60,$61,$62,$63,$64,$65,$66,$67,$68,$69,$6a,$6b,$6c,$6d,$6e,$6f
+	.byte $70,$71,$72,$73,$74,$75,$76,$77,$78,$79,$7a,$7b,$7c,$7d,$7e,$7f
+	.byte $80,$81,$82,$83,$84,$85,$86,$87,$88,$89,$8a,$8b,$8c,$8d,$8e,$8f
+	.byte $90,$91,$92,$93,$94,$95,$96,$97,$98,$99,$9a,$9b,$9c,$9d,$9e,$9f
+	.byte $a0,$a1,$a2,$a3,$a4,$a5,$a6,$a7,$a8,$a9,$aa,$ab,$ac,$ad,$ae,$af
+	.byte $b0,$b1,$b2,$b3,$b4,$b5,$b6,$b7,$b8,$b9,$ba,$bb,$bc,$bd,$be,$bf
+	.byte $c0,$c1,$c2,$c3,$c4,$c5,$c6,$c7,$c8,$c9,$ca,$cb,$cc,$cd,$ce,$cf
+	.byte $d0,$d1,$d2,$d3,$d4,$d5,$d6,$d7,$d8,$d9,$da,$db,$dc,$dd,$de,$df
+	.byte $e0,$e1,$e2,$e3,$e4,$e5,$e6,$e7,$e8,$e9,$ea,$eb,$ec,$ed,$ee,$ef
+	.byte $f0,$f1,$f2,$f3,$f4,$f5,$f6,$f7,$f8,$f9,$fa,$fb,$fc,$fd,$fe,$ff
+	
+	
 
 ; other includes
 

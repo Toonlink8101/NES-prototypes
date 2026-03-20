@@ -65,7 +65,7 @@ class Frame:
 
         print("; python gen_irq_routines_table.py > src/irq_routines_table.asm")
         print()
-        print("        align 256")
+        print("        .align 256")
         print("irq_routines_table:")
 
     def print_scanline(self):
@@ -99,9 +99,9 @@ class Frame:
             args.append(f"DMCFREQ_IRQ_RATE{p1_2}")
         args.extend(additional_args)
 
-        print(f'        WORD {routine}')
+        print(f'        .word {routine}')
         if len(args) > 0:
-            print(f'            byt {", ".join(args)}')
+            print(f'            .byte {", ".join(args)}')
 
     def two_step(
         self,
@@ -124,9 +124,9 @@ class Frame:
             args.append(f"DMCFREQ_IRQ_RATE{p2}")
         args.extend(additional_args)
 
-        print(f'        WORD {routine}')
+        print(f'        .word {routine}')
         if len(args) > 0:
-            print(f'            byt {", ".join(args)}')
+            print(f'            .byte {", ".join(args)}')
 
     def advance_to(self, count, **kwargs):
         count -= self.cpu
@@ -185,7 +185,7 @@ def output_rows(frame):
     cycle_modifier = 4
 
     # This irregular sequence of frequencies keeps us averaging about 4 scanlines per row.
-    for row in range(0, 32):
+    for row in range(0, 51):
         # color off/even frames
         if odd:
             routine = "irq_routine_row_light"
@@ -219,7 +219,8 @@ def output_rows(frame):
         else:
             cycle_modifier = 0
 
-        print(row, freq, elapsed_cycles - expected_cycles, file=stderr)
+        print(file=stderr)
+        # print(row, freq, elapsed_cycles - expected_cycles, file=stderr)
         # print(row, freq, (frame.cpu - start_cpu) / CPU_CYCLES_PER_SCANLINE, offset - (row + 1) * 4, file=stderr)
 
 
@@ -227,11 +228,13 @@ def output_rows(frame):
 frame = Frame()
 
 cycles_vblank = 1364  # ~12 scanlines
-cycle_rows = 8696  # cycle to start rendering the middle rows
+cycle_rows =  3698 #4152 #4606 #5060 #5514 #5968 #8696  # cycle to start rendering the middle rows
+                    #454?
 
 # 1. Start with a VBLANK routine, then advance up to offset_to_rows.
 frame.start(r54)
-frame.one_step(r428, routine="irq_routine_vblank_start")
+#frame.one_step(r428, routine="irq_routine_vblank_start")
+frame.one_step(r214, routine="irq_routine_vblank_start")
 frame.advance_to(cycle_rows)
 print()
 
@@ -253,7 +256,7 @@ frame2.advance_by(
     alignment_offset + 2,
     last_routine_one_step="irq_routine_one_step_align",
     last_routine_two_step="irq_routine_two_step_align",
-    last_routine_additional_args=["lo(irq_routines_table_align_3)"],
+    last_routine_additional_args=["<irq_routines_table_align_3"],
 )
 frame2.frame()
 
@@ -264,6 +267,6 @@ for frame_index in range(1, 4):
         alignment_offset,
         last_routine_one_step="irq_routine_one_step_align",
         last_routine_two_step="irq_routine_two_step_align",
-        last_routine_additional_args=[f"lo(irq_routines_table_align_{frame_index - 1})"],
+        last_routine_additional_args=[f"<irq_routines_table_align_{frame_index - 1}"],
     )
     frame2.frame()

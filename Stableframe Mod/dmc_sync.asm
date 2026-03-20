@@ -44,7 +44,8 @@ initial_dmc_sync:
 initial_dmc_sync_midway:
         ; Setup initial DMC rate to the lowest rate before VBLANK.
         ; This ensures later we will wait the smallest length (<=54*8 cycles) to synchronize.
-        SETMEM_DMCADDRESS DMC_SAMPLE_ADDR
+        lda #<(DMC_wiggle_sample >> 6)
+		sta $4012
         lda #0
         sta DMCLEN
         lda #DMCFREQ_IRQ_RATE54
