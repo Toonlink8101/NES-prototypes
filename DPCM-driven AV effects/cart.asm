@@ -198,11 +198,6 @@ loadsprites:
 	sta $4015 
 	sta $4015 
 	cli
-	
-	lda #%10010000		; enable NMI, BG pattern table 1
-	sta $2000
-
-
 
     loop_forever:
 		ldx #0
@@ -211,90 +206,11 @@ loadsprites:
 		inc temp, X
 		bne loop_forever
 		jmp loop_forever
-		
+	
+	
+;dummy nmi	
 nmi:
-	;testing
-	bit $2002
-	
-	; preserve registers
-	sta preserve_A
-	;stx preserve_X
-	;sty preserve_Y
-	
-	;first output to DMC $4011
-	lda NMI_DMC_output
-	sta $4011
-	
-	; OAM DMA might not be necessary if updates are instead done through PPUADDR ($2006) and PPUDATA ($2007)
-	; This would aleviate some timing pain, but it would also make updating the PPU more challenging
-	
-	;;;;
-	;OAM
-	sei
-	lda #>oam    ;OAM DMA
-    sta $4014
-	;cli
-	;;;;
-	
-	;flag vblank?
-	
-	;manually go through IRQ routine
-	
-	; second DMC output for NMI
-	lda DMC_output
-	sta $4011
-	
-	;load fast DMC frequency
-	lda #%10001111
-	sta $4010
-	
-	;Acknowledge/reset IRQ
-	;sei
-	;lda #$10
-	;sta $4015
-	;sta $4015
-	;sta $4015
-	;cli
-	
-	; not timing critical
-	
-	; reset irq counter
-	lda #60;63		; how many?
-	sta irq_counter
-	
-	; preserve registers
-	;sta preserve_A
-	stx preserve_X
-	sty preserve_Y
-
-	; Iterate software channels
-	; trashes A,X,Y
-	; returns with output in A
-	;jsr Iterate_channels
-	
-	sta DMC_output
-	
-	; do other vblank things
-	; read controller(s)
-	; update PPU
-	; update audio engine (if/when that exists...)
-	; etc.
-	
-	;testing
-	bit $2002
-	
-	; allow irq
-	cli
-	
-	; restore registers
-	; 9 cycles
-	lda preserve_A
-	ldx preserve_X
-	ldy preserve_Y
-	
-	
 	rti
-	
 	
 .segment "ZEROPAGE"
 	DMC_output: .res 1 ; init to zero
@@ -323,21 +239,16 @@ IRQ:
 	; preserve registers
 	sta preserve_A
 	stx preserve_X
-	sty preserve_Y
+	;sty preserve_Y
 
 	; update irq count
 	dec irq_counter
+	;clc
 	
-	; if last irq of frame, prep for NMI
-	bne:+
-		jsr Iterate_channels
-		sta NMI_DMC_output
-		
-		; load values to cancel IRQ
-		ldx #$10
-		;ldy #$00
-		jmp output_dmc
-	:
+	; flag vblank
+	;bne:+
+	;	sec
+	;:
 
 	;load slower DMC frequency
 	ldx irq_counter
@@ -353,35 +264,40 @@ IRQ:
 		nop
 	.endrep
 	
-	; Timing critial over
-	
-	; load fast DMC freq
-	ldx #%10001111
-	
-	; load value to reset IRQ
-	;ldy #$10
-	
 output_dmc:
 	
 	; time a write to DMC_output from previous irq
-	lda DMC_output
-	sta $4011
+	ldx DMC_output
+	stx $4011
 	
 	;store fast DMC frequency
+	ldx #%10001111
 	stx $4010
 	
 	;Acknowledge/reset IRQ
-	ldy #$10
+	ldx #$10
 	sei
-	sty $4015
-	sty $4015
-	sty $4015
+	stx $4015
+	stx $4015
+	stx $4015
 	cli
 
 	; Timing here on out is no longer strict
 
 	; preserve Y
-	;sty preserve_Y
+	sty preserve_Y
+	
+	; reset counter and start vblank code
+	;bcc:+
+	;	lda #64
+	;	sta irq_counter
+	;	jmp Vblank
+	;:
+	cmp #80
+	bne:+
+		jmp Vblank
+	:
+end_of_vblank:
 
 	; Iterate software channels
 	; trashes A,X,Y
@@ -396,11 +312,26 @@ output_dmc:
 	ldx preserve_X
 	ldy preserve_Y
 	
-	bit $2002
+	;bit $2002
 	
 	rti
 
 ; end of IRQ
+
+;;;
+Vblank:
+;;;
+	; oam dma?
+	;???
+	
+	;for now, waste time
+	
+	bit $2002
+	bit $2002
+	bit $2002
+	bit $2002
+	
+	jmp end_of_vblank
 
 
 palettedata:
@@ -452,10 +383,10 @@ identity_table:
 	
 irq_freq_table:
 	;shouldn't be read
-	.byte $80
+	;.byte $80
 	
 	;frame 1
-	.byte $8D,$8E
+	.byte $80,$8E
 	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
 	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
 	.byte $8D,$8E
@@ -464,12 +395,54 @@ irq_freq_table:
 	.byte $8D,$8E
 	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
 	.byte $8D,$8E
-	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8e,$8E
 	
+	.byte $8e,$8E,$8a,$8e,  $87,$8c,$8a,$8a
+	
+	;80 8E 
+	;8D 8E 8E 8D 8E 8E 8D 8E 
+	;8D 8E 8E 8D 8E 8E 8D 8E 
+	;8D 8E 
+	;8D 8E 8E 8D 8E 8E 8D 8E 
+	;8D 8E 8E 8D 8E 8E 8D 8E 
+	;8D 8E 
+	;8D 8E 8E 8D 8E 8E 8D 8E 
+	;8D 8E 
+	;8D 8E 8E 8D 8E 8E 8E 8E 
+	;8E 8E 8A 8E 87 8C 8A 8A
+
+	
+.repeat 3
+	;frame 2-4
+	.byte $80,$8E
 	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	.byte $8D,$8E
+	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	.byte $8D,$8E
+	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	.byte $8D,$8E
+	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8e,$8E
+	
+	.byte $8e,$8E,$8c,$8c,  $87,$8c,$8a,$8a
+	
+	;80 8E 
+	;8D 8E 8E 8D 8E 8E 8D 8E 
+	;8D 8E 8E 8D 8E 8E 8D 8E 
+	;8D 8E 
+	;8D 8E 8E 8D 8E 8E 8D 8E 
+	;8D 8E 8E 8D 8E 8E 8D 8E 
+	;8D 8E
+	;8D 8E 8E 8D 8E 8E 8D 8E 
+	;8D 8E 
+	;8D 8E 8E 8D 8E 8E 8E 8E 
+	;8E 8E 8C 8C 87 8C 8A 8A
+
+.endrepeat
 		
 	; not in frames?
-	.byte $8d, $8f
+	;.byte $8d, $8f
 		
 	;frame 2
 	;.byte $8D,$8E
@@ -511,9 +484,9 @@ irq_freq_table:
 	.byte $80
 	
 	
-	;Rate   $0   $1   $2   $3   $4   $5   $6   $7     $8     $9     $A     $B     $C     $D     $E     $F
-	;NTSC  428, 380, 340, 320, 286, 254, 226, 214,   190,   160,   142,   128,   106,    84,    72,    54
-	;Difference								  		   ^-24-^ ^-30-^ ^-14-^ ^-22-^ ^-22-^ ^-12-^ ^-18-^
+	;Rate  		  $0     $1     $2     $3     $4     $5     $6     $7     $8     $9     $A     $B     $C     $D     $E     $F
+	;NTSC 		 428,   380,   340,   320,   286,   254,   226,   214,   190,   160,   142,   128,   106,    84,    72,    54
+	;Difference	   ^-48-V ^-40-V ^-20-V ^-34-V ^-32-V ^-28-V ^-12-V ^-24-V ^-30-V ^-18-V ^-14-V ^-22-V ^-22-V ^-12-V ^-18-V
 	
 
 ;LUT_offset: .res 1
