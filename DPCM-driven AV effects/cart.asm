@@ -1,7 +1,7 @@
 ;select extended instruction set
 ;.P02X
 
-.include "Indirect_jump_waveforms.asm"
+.include "WaveGen.asm"
 
 .segment "HEADER"
     .byte "NES"     ;identification string
@@ -13,15 +13,21 @@
     .byte $00, $00, $00, $00, $00
 
 .segment "OAM"
-oam: .res 256        ; sprite OAM data to be uploaded by DMA
+	oam: .res 256        ; sprite OAM data to be uploaded by DMA
 
 .segment "BSS"
-temp: .res 1
+	temp: .res 1
 
 .segment "ZEROPAGE"
-zp_temp:    .res 1      ;reserves 1 byte of memory
-irq_counter: .res 1	
-NMI_DMC_output: .res 1 ; init to zero, only used once per frame
+; IRQ trampoline
+	zp_irq_jmp: .res 1
+	zp_irq_addr: .res 2
+	
+;other zp vars
+	zp_grayscale_state: .res 1
+	zp_temp:    .res 1      ;reserves 1 byte of memory
+	irq_counter: .res 1	
+	;NMI_DMC_output: .res 1 ; init to zero, only used once per frame
 	
 
 .segment "CODE"
@@ -116,13 +122,18 @@ loadsprites:
     sta $2001
 
 ;init DMC
-	lda #<(DMC_wiggle_sample >> 6)
-	sta $4012
-	lda #%10001111
-	sta $4010
+;most handled by dmc_sync
+	;lda #<(DMC_wiggle_sample >> 6)
+	;sta $4012
+	;lda #%10001111
+	;sta $4010
 	lda #0
 	sta $4011
-	sta $4013
+	;sta $4013
+	
+; init visual effect vars
+	lda #$AA
+	sta zp_grayscale_state
 
 ; init IRQ audio channels
 	lda #<Pulse_chan1
@@ -191,13 +202,18 @@ loadsprites:
 	;lda #>Snare_sample
 	;sta channel_vars+channel+lfsr_tap
 
+;sync DMC with Vblank
+dmc_sync:
+	jsr initial_dmc_sync
+	
 ; trigger DMC
-	sei
-	lda #$10 
-	sta $4015 
-	sta $4015 
-	sta $4015 
-	cli
+; handled elsewhere
+	;sei
+	;lda #$10 
+	;sta $4015 
+	;sta $4015 
+	;sta $4015 
+	;cli
 
     loop_forever:
 		ldx #0
@@ -225,15 +241,6 @@ nmi:
 	irq_active: .res 1
 
 
-.segment "RODATA"
-.org $C000
-
-DMC_wiggle_sample:
-	.byte $AA
-
-.reloc
-
-
 .segment "CODE"
 IRQ:
 	; preserve registers
@@ -243,43 +250,63 @@ IRQ:
 
 	; update irq count
 	dec irq_counter
-	;clc
+	clc
 	
 	; flag vblank
-	;bne:+
-	;	sec
-	;:
+	bne:+
+		sec
+	:
 
 	;load slower DMC frequency
 	ldx irq_counter
 	lda irq_freq_table, X
 	sta $4010
 	
+	;keep freq in Y for later
+	;tay
+	
 	;time a screen scroll if queued
 	;TODO
 	
+	;toggle of grayscale
+	lda zp_grayscale_state	;3
+	eor #$FF				;2
+	sta zp_grayscale_state	;3
+	and #$01				;2
+	clc						;2
+	adc #%00011110			;2
+	;wait for hblank
+.repeat 9
+	nop
+.endrepeat
+	
+	sta $2001				;4
+	
 	; for now, wait for timing
-	; 18*2 = 36 cycles
-	.repeat 18
-		nop
-	.endrep
+	; 12*2 + 3*4 = 36 cycles
+	;.repeat 12
+	;	nop
+	;.endrep
+	;bit $2002
+	;bit $2002
+	;bit $2002
 	
 output_dmc:
 	
 	; time a write to DMC_output from previous irq
-	ldx DMC_output
-	stx $4011
+	lda DMC_output
+	sta $4011
 	
 	;store fast DMC frequency
-	ldx #%10001111
-	stx $4010
+	lda #%10001111
+	sta $4010
 	
 	;Acknowledge/reset IRQ
-	ldx #$10
+	lda #$10
 	sei
-	stx $4015
-	stx $4015
-	stx $4015
+	sta $4015
+	sta $4015
+	sta $4015
 	cli
 
 	; Timing here on out is no longer strict
@@ -288,12 +315,13 @@ output_dmc:
 	sty preserve_Y
 	
 	; reset counter and start vblank code
-	;bcc:+
-	;	lda #64
-	;	sta irq_counter
-	;	jmp Vblank
-	;:
-	cmp #80
+	bcc:+
+		lda #64*3
+		sta irq_counter
+		;jmp Vblank
+	:
+	lda irq_freq_table, X
+	cmp #$80
 	bne:+
 		jmp Vblank
 	:
@@ -326,6 +354,7 @@ Vblank:
 	
 	;for now, waste time
 	
+	bit $2002
 	bit $2002
 	bit $2002
 	bit $2002
@@ -382,39 +411,30 @@ identity_table:
 	.byte $f0,$f1,$f2,$f3,$f4,$f5,$f6,$f7,$f8,$f9,$fa,$fb,$fc,$fd,$fe,$ff
 	
 irq_freq_table:
-	;shouldn't be read
-	;.byte $80
-	
-	;frame 1
-	.byte $80,$8E
-	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	.byte $8D,$8E
-	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	.byte $8D,$8E
-	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	.byte $8D,$8E
-	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8e,$8E
-	
-	.byte $8e,$8E,$8a,$8e,  $87,$8c,$8a,$8a
-	
-	;80 8E 
-	;8D 8E 8E 8D 8E 8E 8D 8E 
-	;8D 8E 8E 8D 8E 8E 8D 8E 
-	;8D 8E 
-	;8D 8E 8E 8D 8E 8E 8D 8E 
-	;8D 8E 8E 8D 8E 8E 8D 8E 
-	;8D 8E 
-	;8D 8E 8E 8D 8E 8E 8D 8E 
-	;8D 8E 
-	;8D 8E 8E 8D 8E 8E 8E 8E 
-	;8E 8E 8A 8E 87 8C 8A 8A
 
+;uninterrupted vblank, but rougher sound
+;$80 signals vblank
+;.repeat 2
+	;frame 1 (2 cycles longer)
+	.byte $8E ;$80,$8E
+	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	.byte $8D,$8E
+	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	.byte $8D,$8E
+	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	.byte $8D,$8E
+	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8c,$8E
+	
+	.byte $87,$8E,$8e, $8a,$8e,$8e,  $8a,$8a
+	
+	.byte $80;,$8E
+	
 	
 .repeat 3
 	;frame 2-4
-	.byte $80,$8E
+	.byte $8E ;$80,$8E
 	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
 	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
 	.byte $8D,$8E
@@ -423,77 +443,71 @@ irq_freq_table:
 	.byte $8D,$8E
 	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
 	.byte $8D,$8E
-	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8e,$8E
+	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8c,$8E
 	
-	.byte $8e,$8E,$8c,$8c,  $87,$8c,$8a,$8a
+	.byte $87,$8E,$8e, $8c,$8c,$8e,  $8a,$8a
 	
-	;80 8E 
-	;8D 8E 8E 8D 8E 8E 8D 8E 
-	;8D 8E 8E 8D 8E 8E 8D 8E 
-	;8D 8E 
-	;8D 8E 8E 8D 8E 8E 8D 8E 
-	;8D 8E 8E 8D 8E 8E 8D 8E 
-	;8D 8E
-	;8D 8E 8E 8D 8E 8E 8D 8E 
-	;8D 8E 
-	;8D 8E 8E 8D 8E 8E 8E 8E 
-	;8E 8E 8C 8C 87 8C 8A 8A
+	.byte $80;,$8E
 
 .endrepeat
-		
-	; not in frames?
-	;.byte $8d, $8f
-		
-	;frame 2
-	;.byte $8D,$8E
-	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	;.byte $8D,$8E
-	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	;.byte $8D,$8E
-	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	;.byte $8D,$8E
-	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	
-	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8d,$8e
-	
-	
-	
-	;frame 3
-	;.byte $8D,$8E
-	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	;.byte $8D,$8E
-	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	;.byte $8D,$8E
-	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	;.byte $8D,$8E
-	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	
-	;.byte $8D,$8E,$8E, $8D,$8E,$8D,   $8D,$8D
-	
-	
-	;.byte $8D, $8C, $8F, $8D, $8E, $8E
-	;.byte $8D, $8D, $8F, $8D, $8F, $8C
-	
-	
 
-	;shouldn't be read
-	.byte $80
+;BROKEN
+;smoother(?) sound, but interrupted vblank
+; $85 signals vblank start
+	;frames 1 (2 cycles longer)
+	;.byte $87,$85
+	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	;.byte $8D,$8E
+	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	;.byte $8D,$8E
+	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	;.byte $8D,$8E
+	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
 	
+	;.byte $8a,$8e,$8f, $8a,$8e,$8f,  $8a,$89
+
+;.repeat 3
+	;frames 2-4
+	;.byte $87,$85
+	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	;.byte $8D,$8E
+	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	;.byte $8D,$8E
+	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	;.byte $8D,$8E
+	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
 	
+	;.byte $8a,$8e,$8f, $8c,$8c,$8f,  $8a,$89
+;.endrepeat
+	
+	; DPCM playback rates & their timing in CPU cycles
 	;Rate  		  $0     $1     $2     $3     $4     $5     $6     $7     $8     $9     $A     $B     $C     $D     $E     $F
 	;NTSC 		 428,   380,   340,   320,   286,   254,   226,   214,   190,   160,   142,   128,   106,    84,    72,    54
 	;Difference	   ^-48-V ^-40-V ^-20-V ^-34-V ^-32-V ^-28-V ^-12-V ^-24-V ^-30-V ^-18-V ^-14-V ^-22-V ^-22-V ^-12-V ^-18-V
 	
+.align 64
+	
+	DMC_wiggle_sample:
+	.byte $AA
+
 
 ;LUT_offset: .res 1
 .segment "VECTORS"
-    .word nmi
+    ;nmi
+	.word nmi
+	;reset
     .word reset
-	.word IRQ
+	;irq
+	.word zp_irq_jmp
 
 .segment "TILES"
     .incbin "rom.chr"
+	
+.segment "CODE"
+;various includes
+.include "sync_vbl_long.asm"
+.include "dmc_sync.asm"

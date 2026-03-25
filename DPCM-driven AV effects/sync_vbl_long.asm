@@ -1,7 +1,6 @@
 ; From blargg's full_palette demo
 ; Syncs precisely with PPU so that the next frame is a long one
 ; requires alignment for loops to not cross a page
-.segment "CODE"
 
 .align 128
 
@@ -14,16 +13,16 @@ sync_vbl_long:
 		; with VBL beginning sometime after this read, so that
 		; eventually VBL will begin just before the PPUSTATUS read,
 		; and thus leave CPU exactly synchronized to VBL.
-		bit PPUSTATUS
+		bit $2002
 	:
-		bit PPUSTATUS
+		bit $2002
 		bpl:-
 	:
 		nop
         pha
         pla
-        lda PPUSTATUS
-        lda PPUSTATUS
+        lda $2002
+        lda $2002
         pha
         pla
         bpl:-
@@ -46,8 +45,8 @@ sync_vbl_long:
 
         ; Render one frame. This moves VBL time earlier by either
         ; 1/3 or 2/3 CPU clock.
-        lda #PPUMASK_BACKGROUNDENABLE | PPUMASK_BACKGROUNDLEFT8PX
-        sta PPUMASK
+        lda #%00011000
+        sta $2001
         
         ; Delay 29752 clocks
         ldy #33
@@ -60,10 +59,10 @@ sync_vbl_long:
         bne:-
 
         lda #0
-        sta PPUMASK
+        sta $2001
         
         ; VBL flag will read set if rendered frame was short
-        bit PPUSTATUS
+        bit $2002
         bmi ret
         
         ; Rendered frame was long, so wait another (long)

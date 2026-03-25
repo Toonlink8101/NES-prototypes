@@ -54,9 +54,14 @@
 	; returns with output in A
 .segment "CODE"
 Iterate_channels:
+;clear flags and registers
+	clc
+	lda #0		;not sure why clearing registers is necessary here...
+	tax
+	tay
+	
 ;Indirect jump to first channel
 ; 7 cycles
-	clc		; Still needed for Pulse and others. Also, must be accounted for in Linear
 	jmp (waveforms+chan1)
 
 
@@ -68,28 +73,28 @@ Pulse_chan1:
 	; lfsr stores state as a shift register. lfsr_tap holds high divider.
 	; 14?,20? - 32?,28 cycles (assumes zeropage)
 	; 18? bytes
-	dec counter+channel
+	dec counter+channel+channel_vars
 	bne:++
 		;update state
-		asl lfsr+channel
+		asl lfsr+channel+channel_vars
 		;if state was low
 		bcs:+
-			lda divider+channel
+			lda divider+channel+channel_vars
 			jmp @reset_end
 		:
 		;if state was high
 			clc
-			inc lfsr+channel
-			lda lfsr_tap+channel
+			inc lfsr+channel+channel_vars
+			lda lfsr_tap+channel+channel_vars
 @reset_end:
-		sta counter+channel
+		sta counter+channel+channel_vars
 	:
-	bit lfsr+channel
+	bit lfsr+channel+channel_vars
 	; if plus, add volume to output
 	bmi:+
 		;tya
-		;adc volume+channel
-		lda volume
+		;adc volume+channel+channel_vars
+		lda volume+channel+channel_vars
 		tay
 	:
 	jmp (waveforms+chan2)
@@ -102,18 +107,18 @@ Linear_chan1:
 	; setting lfsr == divider and lfsr_tap == -1 results in a sawtooth
 	; 28 - 33,35 (assumes zeropage)
 	; 29 bytes
-	lda counter+channel
-	adc volume+channel
+	lda counter+channel+channel_vars
+	adc volume+channel+channel_vars
 	bpl:+
-		ldx lfsr+channel
-		stx volume+channel
+		ldx lfsr+channel+channel_vars
+		stx volume+channel+channel_vars
 		lda #8
 	:
-	sta counter+channel
-	cmp divider+channel
+	sta counter+channel+channel_vars
+	cmp divider+channel+channel_vars
 	bcc:+
-		ldx lfsr_tap+channel
-		stx volume+channel
+		ldx lfsr_tap+channel+channel_vars
+		stx volume+channel+channel_vars
 	:
 	alr #%00111100
 	lsr
@@ -126,29 +131,29 @@ LFSR_chan1:
 ; Generate LFSR
 	; 16,20 - 24,32 cycles (assumes zeropage)
 	; 36? bytes
-	dec counter+channel
+	dec counter+channel+channel_vars
 	bne:++
 		; reset counter
-		lda divider+channel
-		sta counter+channel
+		lda divider+channel+channel_vars
+		sta counter+channel+channel_vars
 		; galois lfsr
-		lda lfsr_tap+channel
-		sre lfsr+channel			;lsr var, then eor var
+		lda lfsr_tap+channel+channel_vars
+		sre lfsr+channel+channel_vars			;lsr var, then eor var
 		bcs:+
-			sta lfsr+channel
+			sta lfsr+channel+channel_vars
 			;tya
-			;adc volume+channel
-			lda volume+channel
+			;adc volume+channel+channel_vars
+			lda volume+channel+channel_vars
 			tay
 		:
 		jmp (waveforms+chan4)	;TODO: copy this elsewhere
 	:
-	lda lfsr+channel
+	lda lfsr+channel+channel_vars
 	and #%00000001
 	bne:+
 		;tya
-		;adc volume+channel
-		lda volume+channel
+		;adc volume+channel+channel_vars
+		lda volume+channel+channel_vars
 		tay
 	:
 	jmp (waveforms+chan2)
@@ -162,16 +167,16 @@ Sample_chan1:
 	; 31? - 31 cycles (assuming zeropage)
 	; 22? bytes
 	ldx #0
-	asl divider+channel
+	asl divider+channel+channel_vars
 	bcs @read_high
 ;read_low:
-		lda (lfsr+channel, X)
+		lda (lfsr+channel+channel_vars, X)
 		and #%00001111
-		inc lfsr+channel
+		inc lfsr+channel+channel_vars
 		jmp @output
 @read_high:
-		inc divider+channel
-		lda (lfsr+channel, X)
+		inc divider+channel+channel_vars
+		lda (lfsr+channel+channel_vars, X)
 		lsr
 		lsr
 		lsr
@@ -190,27 +195,27 @@ Pulse_chan2:
 	; lfsr stores state as a shift register. lfsr_tap holds high divider.
 	; 14?,20? - 32?,34 cycles (assumes zeropage)
 	; 18 bytes
-	dec counter+channel
+	dec counter+channel+channel_vars
 	bne:++
 		;update state
-		asl lfsr+channel
+		asl lfsr+channel+channel_vars
 		;if state was low
 		bcs:+
-			lda divider+channel
+			lda divider+channel+channel_vars
 			jmp @reset_end
 		:
 		;if state was high
 			clc
-			inc lfsr+channel
-			lda lfsr_tap+channel
+			inc lfsr+channel+channel_vars
+			lda lfsr_tap+channel+channel_vars
 @reset_end:
-		sta counter+channel
+		sta counter+channel+channel_vars
 	:
-	bit lfsr+channel
+	bit lfsr+channel+channel_vars
 	; if plus, add volume to output
 	bmi:+
 		tya
-		adc volume+channel
+		adc volume+channel+channel_vars
 		tay
 	:
 	jmp (waveforms+chan3)
@@ -223,18 +228,18 @@ Linear_chan2:
 	; setting lfsr == divider and lfsr_tap == -1 results in a sawtooth
 	; 28 - 33,35 (assumes zeropage)
 	; 29 bytes
-	lda counter+channel
-	adc volume+channel
+	lda counter+channel+channel_vars
+	adc volume+channel+channel_vars
 	bpl:+
-		ldx lfsr+channel
-		stx volume+channel
+		ldx lfsr+channel+channel_vars
+		stx volume+channel+channel_vars
 		lda #8
 	:
-	sta counter+channel
-	cmp divider+channel
+	sta counter+channel+channel_vars
+	cmp divider+channel+channel_vars
 	bcc:+
-		ldx lfsr_tap+channel
-		stx volume+channel
+		ldx lfsr_tap+channel+channel_vars
+		stx volume+channel+channel_vars
 	:
 	alr #%00111100
 	lsr
@@ -247,27 +252,27 @@ LFSR_chan2:
 ; Generate LFSR
 	; 16,22 - 24,34 cycles (assumes zeropage)
 	; 36 bytes
-	dec counter+channel
+	dec counter+channel+channel_vars
 	bne:++
 		; reset counter
-		lda divider+channel
-		sta counter+channel
+		lda divider+channel+channel_vars
+		sta counter+channel+channel_vars
 		; galois lfsr
-		lda lfsr_tap+channel
-		sre lfsr+channel			;lsr var, then eor var
+		lda lfsr_tap+channel+channel_vars
+		sre lfsr+channel+channel_vars			;lsr var, then eor var
 		bcs:+
-			sta lfsr+channel
+			sta lfsr+channel+channel_vars
 			tya
-			adc volume+channel
+			adc volume+channel+channel_vars
 			tay
 		:
 		jmp (waveforms+chan3)	;TODO: copy this elsewhere
 	:
-	lda lfsr+channel
+	lda lfsr+channel+channel_vars
 	and #%00000001
 	bne:+
 		tya
-		adc volume+channel
+		adc volume+channel+channel_vars
 		tay
 	:
 	jmp (waveforms+chan3)
@@ -281,16 +286,16 @@ Sample_chan2:
 	; 31 - 35 cycles (assuming zeropage)
 	; 22 bytes
 	ldx #0
-	asl divider+channel
+	asl divider+channel+channel_vars
 	bcs @read_high
 ;read_low:
-		lda (lfsr+channel, X)
+		lda (lfsr+channel+channel_vars, X)
 		and #%00001111
-		inc lfsr+channel
+		inc lfsr+channel+channel_vars
 		jmp @output
 @read_high:
-		inc divider+channel
-		lda (lfsr+channel, X)
+		inc divider+channel+channel_vars
+		lda (lfsr+channel+channel_vars, X)
 		lsr
 		lsr
 		lsr
@@ -309,27 +314,27 @@ Pulse_chan3:
 	; lfsr stores state as a shift register. lfsr_tap holds high divider.
 	; 14?,20? - 32?,34 cycles (assumes zeropage)
 	; 18 bytes
-	dec counter+channel
+	dec counter+channel+channel_vars
 	bne:++
 		;update state
-		asl lfsr+channel
+		asl lfsr+channel+channel_vars
 		;if state was low
 		bcs:+
-			lda divider+channel
+			lda divider+channel+channel_vars
 			jmp @reset_end
 		:
 		;if state was high
 			clc
-			inc lfsr+channel
-			lda lfsr_tap+channel
+			inc lfsr+channel+channel_vars
+			lda lfsr_tap+channel+channel_vars
 @reset_end:
-		sta counter+channel
+		sta counter+channel+channel_vars
 	:
-	bit lfsr+channel
+	bit lfsr+channel+channel_vars
 	; if plus, add volume to output
 	bmi:+
 		tya
-		adc volume+channel
+		adc volume+channel+channel_vars
 		tay
 	:
 	jmp (waveforms+chan4)
@@ -341,18 +346,18 @@ Linear_chan3:
 	; setting lfsr == divider and lfsr_tap == -1 results in a sawtooth
 	; 28 - 33,35 (assumes zeropage)
 	; 29 bytes
-	lda counter+channel
-	adc volume+channel
+	lda counter+channel+channel_vars
+	adc volume+channel+channel_vars
 	bpl:+
-		ldx lfsr+channel
-		stx volume+channel
+		ldx lfsr+channel+channel_vars
+		stx volume+channel+channel_vars
 		lda #8
 	:
-	sta counter+channel
-	cmp divider+channel
+	sta counter+channel+channel_vars
+	cmp divider+channel+channel_vars
 	bcc:+
-		ldx lfsr_tap+channel
-		stx volume+channel
+		ldx lfsr_tap+channel+channel_vars
+		stx volume+channel+channel_vars
 	:
 	alr #%00111100
 	lsr
@@ -365,27 +370,27 @@ LFSR_chan3:
 ; Generate LFSR
 	; 16,22 - 24,34 cycles (assumes zeropage)
 	; 36 bytes
-	dec counter+channel
+	dec counter+channel+channel_vars
 	bne:++
 		; reset counter
-		lda divider+channel
-		sta counter+channel
+		lda divider+channel+channel_vars
+		sta counter+channel+channel_vars
 		; galois lfsr
-		lda lfsr_tap+channel
-		sre lfsr+channel			;lsr var, then eor var
+		lda lfsr_tap+channel+channel_vars
+		sre lfsr+channel+channel_vars			;lsr var, then eor var
 		bcs:+
-			sta lfsr+channel
+			sta lfsr+channel+channel_vars
 			tya
-			adc volume+channel
+			adc volume+channel+channel_vars
 			tay
 		:
 		jmp (waveforms+chan4)	;TODO: copy this elsewhere
 	:
-	lda lfsr+channel
+	lda lfsr+channel+channel_vars
 	and #%00000001
 	bne:+
 		tya
-		adc volume+channel
+		adc volume+channel+channel_vars
 		tay
 	:
 	jmp (waveforms+chan4)
@@ -399,16 +404,16 @@ Sample_chan3:
 	; 31 - 35 cycles (assuming zeropage)
 	; 22 bytes
 	ldx #0
-	asl divider+channel
+	asl divider+channel+channel_vars
 	bcs @read_high
 ;read_low:
-		lda (lfsr+channel, X)
+		lda (lfsr+channel+channel_vars, X)
 		and #%00001111
-		inc lfsr+channel
+		inc lfsr+channel+channel_vars
 		jmp @output
 @read_high:
-		inc divider+channel
-		lda (lfsr+channel, X)
+		inc divider+channel+channel_vars
+		lda (lfsr+channel+channel_vars, X)
 		lsr
 		lsr
 		lsr
@@ -427,27 +432,27 @@ Pulse_chan4:
 	; lfsr stores state as a shift register. lfsr_tap holds high divider.
 	; 14?,20? - 32?,34 cycles (assumes zeropage)
 	; 18? bytes
-	dec counter+channel
+	dec counter+channel+channel_vars
 	bne:++
 		;update state
-		asl lfsr+channel
+		asl lfsr+channel+channel_vars
 		;if state was low
 		bcs:+
-			lda divider+channel
+			lda divider+channel+channel_vars
 			jmp @reset_end
 		:
 		;if state was high
 			clc
-			inc lfsr+channel
-			lda lfsr_tap+channel
+			inc lfsr+channel+channel_vars
+			lda lfsr_tap+channel+channel_vars
 @reset_end:
-		sta counter+channel
+		sta counter+channel+channel_vars
 	:
 	tya
-	bit lfsr+channel
+	bit lfsr+channel+channel_vars
 	; if plus, add volume to output
 	bmi:+
-		adc volume+channel
+		adc volume+channel+channel_vars
 		;tay
 	:
 	jmp Output_to_DPCM
@@ -459,18 +464,18 @@ Linear_chan4:
 	; setting lfsr == divider and lfsr_tap == -1 results in a sawtooth
 	; 28 - 33,35 (assumes zeropage)
 	; 29 bytes
-	lda counter+channel
-	adc volume+channel
+	lda counter+channel+channel_vars
+	adc volume+channel+channel_vars
 	bpl:+
-		ldx lfsr+channel
-		stx volume+channel
+		ldx lfsr+channel+channel_vars
+		stx volume+channel+channel_vars
 		lda #8
 	:
-	sta counter+channel
-	cmp divider+channel
+	sta counter+channel+channel_vars
+	cmp divider+channel+channel_vars
 	bcc:+
-		ldx lfsr_tap+channel
-		stx volume+channel
+		ldx lfsr_tap+channel+channel_vars
+		stx volume+channel+channel_vars
 	:
 	alr #%00111100
 	lsr
@@ -483,27 +488,27 @@ LFSR_chan4:
 ; Generate LFSR
 	; 16?,22? - 24,34 cycles (assumes zeropage)
 	; 36? bytes
-	dec counter+channel
+	dec counter+channel+channel_vars
 	bne:++
 		; reset counter
-		lda divider+channel
-		sta counter+channel
+		lda divider+channel+channel_vars
+		sta counter+channel+channel_vars
 		; galois lfsr
-		lda lfsr_tap+channel
-		sre lfsr+channel			;lsr var, then eor var
+		lda lfsr_tap+channel+channel_vars
+		sre lfsr+channel+channel_vars			;lsr var, then eor var
 		bcs:+
-			sta lfsr+channel
+			sta lfsr+channel+channel_vars
 			tya
-			adc volume+channel
+			adc volume+channel+channel_vars
 			tay
 		:
 		jmp Output_to_DPCM
 	:
-	lda lfsr+channel
+	lda lfsr+channel+channel_vars
 	and #%00000001
 	bne:+
 		tya
-		adc volume+channel
+		adc volume+channel+channel_vars
 		jmp Output_to_DPCM
 	:
 	tya
@@ -517,16 +522,16 @@ Sample_chan4:
 	; 31? - 33 cycles (assuming zeropage)
 	; 22? bytes
 	ldx #0
-	asl divider+channel
+	asl divider+channel+channel_vars
 	bcs @read_high
 ;read_low:
-		lda (lfsr+channel, X)
+		lda (lfsr+channel+channel_vars, X)
 		and #%00001111
-		inc lfsr+channel
+		inc lfsr+channel+channel_vars
 		jmp @output
 @read_high:
-		inc divider+channel
-		lda (lfsr+channel, X)
+		inc divider+channel+channel_vars
+		lda (lfsr+channel+channel_vars, X)
 		lsr
 		lsr
 		lsr
