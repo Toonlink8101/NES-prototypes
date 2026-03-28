@@ -24,7 +24,8 @@
 	zp_irq_addr: .res 2
 	
 ;other zp vars
-	zp_grayscale_state: .res 1
+	zp_PPUmask_state: .res 1
+	zp_x_offset: .res 1
 	zp_temp:    .res 1      ;reserves 1 byte of memory
 	irq_counter: .res 1	
 	;NMI_DMC_output: .res 1 ; init to zero, only used once per frame
@@ -120,6 +121,7 @@ loadsprites:
 
     lda #%00011110          ;show sprites and background
     sta $2001
+	sta zp_PPUmask_state
 
 ;init DMC
 ;most handled by dmc_sync
@@ -132,8 +134,8 @@ loadsprites:
 	;sta $4013
 	
 ; init visual effect vars
-	lda #$AA
-	sta zp_grayscale_state
+	;lda #$00
+	
 
 ; init IRQ audio channels
 	lda #<Pulse_chan1
@@ -142,46 +144,72 @@ loadsprites:
 	stx waveforms+1
 	
 	channel .set 0*5
-	lda #10
+	lda #4
 	sta channel_vars+channel+divider
 	lda #0
 	sta channel_vars+channel+counter
-	lda #$0
+	lda #$04
+	sta channel_vars+channel+volume
+	lda #$AA
+	sta channel_vars+channel+lfsr
+	lda #4
+	sta channel_vars+channel+lfsr_tap
+	
+	;lda #<Linear_chan2
+	;ldx #>Linear_chan2
+	lda #<Pulse_chan2
+	ldx #>Pulse_chan2
+	sta waveforms+2
+	stx waveforms+3
+	
+	channel .set 1*5
+	lda #10
+	sta channel_vars+channel+divider
+	lda #1
+	sta channel_vars+channel+counter
+	lda #$04
 	sta channel_vars+channel+volume
 	lda #$AA
 	sta channel_vars+channel+lfsr
 	lda #10
 	sta channel_vars+channel+lfsr_tap
 	
-	lda #<Linear_chan2
-	ldx #>Linear_chan2
-	sta waveforms+2
-	stx waveforms+3
-	
-	channel .set 1*5
-	;lda #60
+	;lda #40
 	;sta channel_vars+channel+divider
-	;lda #1
+	;lda #2
 	;sta channel_vars+channel+counter
-	lda #0
-	sta channel_vars+channel+volume
-	;lda #3
+	;lda #$02
+	;sta channel_vars+channel+volume
+	;lda #4
 	;sta channel_vars+channel+lfsr
-	;lda #(12 ^$FF)+1
+	;lda #(4 ^$FF)+1	;negates value
 	;sta channel_vars+channel+lfsr_tap
 	
-	lda #<LFSR_chan3
-	ldx #>LFSR_chan3
+	;lda #<LFSR_chan3
+	;ldx #>LFSR_chan3
+	lda #<Pulse_chan3
+	ldx #>Pulse_chan3
 	sta waveforms+4
 	stx waveforms+5
 	
 	channel .set 2*5
+	lda #6
+	sta channel_vars+channel+divider
+	lda #2
+	sta channel_vars+channel+counter
+	lda #$04
+	sta channel_vars+channel+volume
+	lda #$AA
+	sta channel_vars+channel+lfsr
+	lda #6
+	sta channel_vars+channel+lfsr_tap
+	
 	;lda #4
 	;sta channel_vars+channel+divider
 	;lda #1
 	;sta channel_vars+channel+counter
-	lda #$0
-	sta channel_vars+channel+volume
+	;lda #$0
+	;sta channel_vars+channel+volume
 	;lda #1
 	;sta channel_vars+channel+lfsr
 	;lda #%11100001
@@ -189,12 +217,23 @@ loadsprites:
 	
 	;lda #<Sample_chan4
 	;ldx #>Sample_chan4
-	lda #<LFSR_chan4
-	ldx #>LFSR_chan4
+	lda #<Pulse_chan4
+	ldx #>Pulse_chan4
 	sta waveforms+6
 	stx waveforms+7
 	
 	channel .set 3*5
+	lda #15
+	sta channel_vars+channel+divider
+	lda #3
+	sta channel_vars+channel+counter
+	lda #$04
+	sta channel_vars+channel+volume
+	lda #$AA
+	sta channel_vars+channel+lfsr
+	lda #15
+	sta channel_vars+channel+lfsr_tap
+	
 	;lda #$55
 	;sta channel_vars+channel+divider
 	;lda #<Snare_sample
@@ -253,9 +292,9 @@ IRQ:
 	clc
 	
 	; flag vblank
-	bne:+
-		sec
-	:
+	;bne:+
+	;	sec
+	;:
 
 	;load slower DMC frequency
 	ldx irq_counter
@@ -265,22 +304,17 @@ IRQ:
 	;keep freq in Y for later
 	;tay
 	
-	;time a screen scroll if queued
-	;TODO
-	
-	;toggle of grayscale
-	lda zp_grayscale_state	;3
-	eor #$FF				;2
-	sta zp_grayscale_state	;3
-	and #$01				;2
-	clc						;2
-	adc #%00011110			;2
+	;time a PPU update
+	ldx zp_PPUmask_state	;3
+	lda zp_x_offset			;3
 	;wait for hblank
-.repeat 9
+.repeat 5
 	nop
 .endrepeat
 	
-	sta $2001				;4
+	sta $2005				;4
+	bit $2002
+	stx $2001				;4
 	
 	; for now, wait for timing
 	; 12*2 + 3*4 = 36 cycles
@@ -314,17 +348,54 @@ output_dmc:
 	; preserve Y
 	sty preserve_Y
 	
-	; reset counter and start vblank code
-	bcc:+
-		lda #64*3
-		sta irq_counter
-		;jmp Vblank
-	:
-	lda irq_freq_table, X
-	cmp #$80
+	; get irq position
+	lda irq_counter
+	and #%00111111		;modulous 64
+	tax
+
+	; check for vblank
+	;lda irq_freq_table, X
+	;cmp #$88
+	cpx #63
 	bne:+
 		jmp Vblank
 	:
+	
+	;test if irq is midscreen: between 39 and 16 (inclusive)
+	txa
+	;clc	;carry already clear
+	adc #$ff-39		;$ff-max
+	adc #39-16+1	;max-min+1
+	bcc:+
+		;turn grayscale off
+		lda zp_PPUmask_state
+		and #%11111110
+		sta zp_PPUmask_state
+		
+		; x offset
+		lda irq_counter
+		rol
+		rol
+		rol
+		rol
+		and #%00000111
+		;and irq_counter
+		;sta zp_x_offset
+		sax zp_x_offset
+	:
+	; end of midscreen
+	cpx #15
+	bne:+
+		;turn grayscale on
+		lda zp_PPUmask_state
+		ora #%00000001
+		sta zp_PPUmask_state
+		
+		;zero out x offset
+		lda #0
+		sta zp_x_offset
+	:
+	
 end_of_vblank:
 
 	; Iterate software channels
@@ -340,7 +411,7 @@ end_of_vblank:
 	ldx preserve_X
 	ldy preserve_Y
 	
-	;bit $2002
+	bit $2002
 	
 	rti
 
@@ -350,11 +421,11 @@ end_of_vblank:
 Vblank:
 ;;;
 	; oam dma?
-	;???
+    ;lda #>oam
+    ;sta $4014
 	
 	;for now, waste time
 	
-	bit $2002
 	bit $2002
 	bit $2002
 	bit $2002
@@ -412,76 +483,86 @@ identity_table:
 	
 irq_freq_table:
 
-;uninterrupted vblank, but rougher sound
-;$80 signals vblank
-;.repeat 2
+;smoother audio, but no OAM DMA & less visual IRQs
+;$88 signals vblank
 	;frame 1 (2 cycles longer)
-	.byte $8E ;$80,$8E
-	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	.byte $8D,$8E
-	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	.byte $8D,$8E
-	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	.byte $8D,$8E
-	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8c,$8E
+	.byte $8d
 	
-	.byte $87,$8E,$8e, $8a,$8e,$8e,  $8a,$8a
+	.byte $8D,$8d
+	.byte $8D,$8d,$8d, $8D,$8d,$8d,   $8D,$8d
 	
-	.byte $80;,$8E
+	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	.byte $8D,$8E
+	.byte $8D,$8E,$8E, $8D,$8e,$8e,   $8D,$8e
+	.byte $8D,$8e,$8e, $8D,$8e,$8d,   $8D,$8d
+	
+	.byte $8D,$8d
+	.byte $8D,$8d,$8d, $8D,$8d,$8d,   $8d,$8d
+	
+	.byte $8a,$8d,$8a, $8a,$8a,$8a,  $8a,$8e
+	
+	.byte $88
 	
 	
 .repeat 3
 	;frame 2-4
-	.byte $8E ;$80,$8E
-	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	.byte $8D,$8E
-	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	.byte $8D,$8E
-	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	.byte $8D,$8E
-	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8c,$8E
+	.byte $8d
 	
-	.byte $87,$8E,$8e, $8c,$8c,$8e,  $8a,$8a
+	.byte $8D,$8d
+	.byte $8D,$8d,$8d, $8D,$8d,$8d,   $8D,$8d
 	
-	.byte $80;,$8E
+	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+	.byte $8D,$8E
+	.byte $8D,$8E,$8E, $8D,$8e,$8e,   $8D,$8e
+	.byte $8D,$8e,$8e, $8D,$8e,$8d,   $8D,$8d
+	
+	.byte $8D,$8d
+	.byte $8D,$8d,$8d, $8D,$8d,$8d,   $8d,$8d
+	
+	.byte $8a,$8d,$8a, $8a,$8a,$8a,  $8c,$8c
+	
+	.byte $88
 
 .endrepeat
 
-;BROKEN
-;smoother(?) sound, but interrupted vblank
-; $85 signals vblank start
-	;frames 1 (2 cycles longer)
-	;.byte $87,$85
-	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	;.byte $8D,$8E
-	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	;.byte $8D,$8E
-	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	;.byte $8D,$8E
-	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	
-	;.byte $8a,$8e,$8f, $8a,$8e,$8f,  $8a,$89
-
+;OAM DMA, but sounds rough
+;$80 signals vblank
+;	;frame 1 (2 cycles longer)
+;	.byte $8E ;$80,$8E
+;	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+;	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+;	.byte $8D,$8E
+;	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+;	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+;	.byte $8D,$8E
+;	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+;	.byte $8D,$8E
+;	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8e,$8E
+;	
+;	.byte $8c,$8E,$8e, $8a,$87,$8e,  $8a,$8a
+;	
+;	.byte $80;,$8E
+;	
+;	
 ;.repeat 3
-	;frames 2-4
-	;.byte $87,$85
-	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	;.byte $8D,$8E
-	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	;.byte $8D,$8E
-	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	;.byte $8D,$8E
-	;.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-	
-	;.byte $8a,$8e,$8f, $8c,$8c,$8f,  $8a,$89
+;	;frame 2-4
+;	.byte $8E ;$80,$8E
+;	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+;	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+;	.byte $8D,$8E
+;	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+;	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+;	.byte $8D,$8E
+;	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
+;	.byte $8D,$8E
+;	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8e,$8E
+;	
+;	.byte $8c,$8E,$8c, $8c,$87,$8e,  $8a,$8a
+;	
+;	.byte $80;,$8E
+;
 ;.endrepeat
 	
 	; DPCM playback rates & their timing in CPU cycles

@@ -58,8 +58,8 @@ initial_dmc_sync_midway:
         ; Position to late in the frame where DMC calibration should happen. This allows the
         ; calibration to be performed so that the first IRQ will fire at the start of scanline 240.
         ; This can be manually adjusted as needed, as well as the delay length gen_dmc_sync.asm.
-        ldy #253;34
-        ldx #22;23
+        ldy #38;34
+        ldx #23;23
     :	
         dey
         bne:-
