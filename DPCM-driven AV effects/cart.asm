@@ -26,6 +26,7 @@
 ;other zp vars
 	zp_PPUmask_state: .res 1
 	zp_x_offset: .res 1
+	zp_FX_state: .res 1
 	zp_temp:    .res 1      ;reserves 1 byte of memory
 	irq_counter: .res 1	
 	;NMI_DMC_output: .res 1 ; init to zero, only used once per frame
@@ -373,15 +374,11 @@ output_dmc:
 		sta zp_PPUmask_state
 		
 		; x offset
-		lda irq_counter
-		rol
-		rol
-		rol
-		rol
-		and #%00000111
-		;and irq_counter
-		;sta zp_x_offset
-		sax zp_x_offset
+		ldy zp_FX_state
+		dey
+		sty zp_FX_state
+		lda sine_lookup, Y
+		sta zp_x_offset
 	:
 	; end of midscreen
 	cpx #15
@@ -526,44 +523,6 @@ irq_freq_table:
 	.byte $88
 
 .endrepeat
-
-;OAM DMA, but sounds rough
-;$80 signals vblank
-;	;frame 1 (2 cycles longer)
-;	.byte $8E ;$80,$8E
-;	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-;	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-;	.byte $8D,$8E
-;	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-;	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-;	.byte $8D,$8E
-;	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-;	.byte $8D,$8E
-;	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8e,$8E
-;	
-;	.byte $8c,$8E,$8e, $8a,$87,$8e,  $8a,$8a
-;	
-;	.byte $80;,$8E
-;	
-;	
-;.repeat 3
-;	;frame 2-4
-;	.byte $8E ;$80,$8E
-;	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-;	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-;	.byte $8D,$8E
-;	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-;	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-;	.byte $8D,$8E
-;	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8D,$8E
-;	.byte $8D,$8E
-;	.byte $8D,$8E,$8E, $8D,$8E,$8E,   $8e,$8E
-;	
-;	.byte $8c,$8E,$8c, $8c,$87,$8e,  $8a,$8a
-;	
-;	.byte $80;,$8E
-;
-;.endrepeat
 	
 	; DPCM playback rates & their timing in CPU cycles
 	;Rate  		  $0     $1     $2     $3     $4     $5     $6     $7     $8     $9     $A     $B     $C     $D     $E     $F
@@ -572,9 +531,13 @@ irq_freq_table:
 	
 .align 64
 	
-	DMC_wiggle_sample:
+DMC_wiggle_sample:
 	.byte $AA
+	
 
+sine_lookup:
+	.byte 4,4,5,6,7,7,7,7,6,6,5,4,3,2,1,1,0,0,0,0,1,2,2,3,4,5,6,6,7,7,7,7,6,5,4,3,2,2,1,0,0,0,0,1,1,2,3,4,5,6,6,7,7,7,7,6,5,5,4,3,2,1,0,0,0,0,1,1,2,3,4,5,5,6,7,7,7,7,6,6,5,4,3,2,1,1,0,0,0,0,1,2,3,3,4,5,6,7,7,7,7,6,6,5,4,3,2,1,1,0,0,0,0,1,1,2,3,4,5,6,6,7,7,7,7,6,5,4,3,3,2,1,0,0,0,0,1,1,2,3,4,5,6,6,7,7,7,7,6,5,5,4,3,2,1,1,0,0,0,0,1,2,3,4,5,5,6,7,7,7,7,6,6,5,4,3,2,1,1,0,0,0,0,1,2,2,3,4,5,6,7,7,7,7,6,6,5,4,3,2,2,1,0,0,0,0,1,1,2,3,4,5,6,6,7,7,7,7,6,5,4,4,3,2,1,0,0,0,0,1,1,2,3,4,5,6,6,7,7,7,7,6,6,5,4,3,2,1,1,0,0,0,0,1,2,3
+	
 
 ;LUT_offset: .res 1
 .segment "VECTORS"
