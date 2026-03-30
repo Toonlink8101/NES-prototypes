@@ -17,6 +17,7 @@
 
 .segment "BSS"
 	temp: .res 1
+	counter_word: .res 2
 
 .segment "ZEROPAGE"
 ; IRQ trampoline
@@ -256,11 +257,17 @@ dmc_sync:
 	;cli
 
     loop_forever:
-		ldx #0
-		stx zp_temp
-		bit zp_temp
-		inc temp, X
-		bne loop_forever
+		;ldx #0
+		;stx zp_temp
+		;bit zp_temp
+		;inc temp, X
+		;bne loop_forever
+		
+		inc counter_word
+		bne:+
+			inc counter_word+1
+		:
+		
 		jmp loop_forever
 	
 	
@@ -392,8 +399,6 @@ output_dmc:
 		lda #0
 		sta zp_x_offset
 	:
-	
-end_of_vblank:
 
 	; Iterate software channels
 	; trashes A,X,Y
@@ -401,6 +406,8 @@ end_of_vblank:
 	jsr Iterate_channels
 	
 	sta DMC_output
+	
+end_of_vblank:
 	
 	; restore registers
 	; 9 cycles
@@ -417,16 +424,37 @@ end_of_vblank:
 ;;;
 Vblank:
 ;;;
-	; oam dma?
-    ;lda #>oam
-    ;sta $4014
+	; since this will be interupted by other IRQs,
+	; Iterate software channels
+	; trashes A,X,Y
+	; returns with output in A
+	jsr Iterate_channels
 	
-	;for now, waste time
+	sta DMC_output	
 	
-	bit $2002
-	bit $2002
-	bit $2002
-	bit $2002
+	
+	;update PPU
+	lda #$20
+	sta $2006
+	lda #$00
+	sta $2006
+	
+	lda #$9B
+	sta temp
+	ldx #70
+	:
+		lda temp
+		sta $2007
+		dex
+	bne:-
+	
+	
+	;reset PPUADDR
+	lda #0
+	sta $2006
+	sta $2006
+	
+	;reset scroll?
 	
 	jmp end_of_vblank
 
