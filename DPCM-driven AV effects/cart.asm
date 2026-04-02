@@ -27,6 +27,7 @@
 ;other zp vars
 	zp_PPUmask_state: .res 1
 	zp_x_offset: .res 1
+	zp_y_offset: .res 1
 	zp_FX_state: .res 1
 	zp_temp:    .res 1      ;reserves 1 byte of memory
 	irq_counter: .res 1	
@@ -297,11 +298,11 @@ IRQ:
 	; preserve registers
 	sta preserve_A
 	stx preserve_X
-	;sty preserve_Y
+	sty preserve_Y
 
 	; update irq count
 	dec irq_counter
-	clc
+	;clc
 	
 	; flag vblank
 	;bne:+
@@ -317,7 +318,7 @@ IRQ:
 	;tay
 	
 	;time a PPU update
-	ldx zp_PPUmask_state	;3
+	ldy zp_PPUmask_state	;3
 	lda zp_x_offset			;3
 	;wait for hblank
 .repeat 5
@@ -325,8 +326,9 @@ IRQ:
 .endrepeat
 	
 	sta $2005				;4
+	bit $2002				;4
+	;sty $2001				;4
 	bit $2002
-	stx $2001				;4
 	
 	; for now, wait for timing
 	; 12*2 + 3*4 = 36 cycles
@@ -356,9 +358,10 @@ output_dmc:
 	cli
 
 	; Timing here on out is no longer strict
+timing_over:
 
 	; preserve Y
-	sty preserve_Y
+	;sty preserve_Y
 	
 	; get irq position
 	lda irq_counter
@@ -371,6 +374,16 @@ output_dmc:
 	cpx #63
 	bne:+
 		jmp Vblank
+	:
+	
+	; start of midscreen
+	cpx #40
+	bne:+
+		;change scroll routine
+		lda #<scroll_IRQ
+        sta <zp_irq_addr
+        lda #>scroll_IRQ
+        sta zp_irq_addr+1
 	:
 	
 	;test if irq is midscreen: between 39 and 16 (inclusive)
@@ -390,18 +403,28 @@ output_dmc:
 		sty zp_FX_state
 		lda sine_lookup, Y
 		sta zp_x_offset
+		sta zp_y_offset
 	:
 	; end of midscreen
 	cpx #15
 	bne:+
 		;turn grayscale on
-		lda zp_PPUmask_state
-		ora #%00000001
-		sta zp_PPUmask_state
+		;lda zp_PPUmask_state
+		;ora #%00000001
+		;sta zp_PPUmask_state
 		
 		;zero out x offset
 		lda #0
 		sta zp_x_offset
+		sta zp_y_offset
+	:
+	cpx #14
+	bne:+
+		;change scroll routine
+		lda #<IRQ
+        sta <zp_irq_addr
+        lda #>IRQ
+        sta zp_irq_addr+1
 	:
 
 	; Iterate software channels
@@ -423,7 +446,80 @@ end_of_vblank:
 	
 	rti
 
-; end of IRQ
+
+
+scroll_IRQ:
+	; preserve registers
+	sta preserve_A
+	stx preserve_X
+	sty preserve_Y
+
+	; update irq count
+	dec irq_counter
+	;clc
+	
+	; flag vblank
+	;bne:+
+	;	sec
+	;:
+
+	;load slower DMC frequency
+	ldx irq_counter
+	lda irq_freq_table, X
+	sta $4010
+	
+	;keep freq in Y for later
+	;tay
+	
+	;time a PPU update
+	; we only have 18 cycles?
+	
+	ldy zp_PPUmask_state	;3
+	ldx #0					;2
+	stx $2006				;4
+	lda zp_y_offset			;3
+	sta $2005				;4
+	lda zp_x_offset			;3
+	;wait for hblank
+.repeat 0
+	nop
+.endrepeat
+	
+	sta $2005				;4
+	stx $2006				;4
+	;sty $2001				;4
+	bit $2002
+	
+	; for now, wait for timing
+	; 12*2 + 3*4 = 36 cycles
+	;.repeat 12
+	;	nop
+	;.endrep
+	;bit $2002
+	;bit $2002
+	;bit $2002
+	
+;output_dmc:
+	
+	; time a write to DMC_output from previous irq
+	lda DMC_output
+	sta $4011
+	
+	;store fast DMC frequency
+	lda #%10001111
+	sta $4010
+	
+	;Acknowledge/reset IRQ
+	lda #$10
+	sei
+	sta $4015
+	sta $4015
+	sta $4015
+	cli
+
+	jmp timing_over
+
+; end of IRQs
 
 ;;;
 Vblank:
@@ -443,9 +539,12 @@ Vblank:
 	lda #$00
 	sta $2006
 	
+	lda zp_PPUmask_state
+	sta $2001
+	
 	lda #$9B
 	sta temp
-	ldx #70
+	ldx #60
 	:
 		lda temp
 		sta $2007
@@ -464,8 +563,10 @@ Vblank:
 
 
 palettedata:
-	.byte $00, $0f, $00, $10, 	$00, $0a, $15, $01, 	$00, $29, $28, $27, 	$00, $34, $24, $14 	;background palettes
-	.byte $31, $25, $15, $35, 	$00, $02, $22, $3c, 	$00, $1A, $39, $0f, 	$00, $0f, $2d, $10 	;sprite palettes
+;background palettes
+	.byte $31, $27, $2B, $14, 	$00, $0a, $15, $01, 	$00, $29, $28, $27, 	$00, $34, $24, $14
+;sprite palettes
+	.byte $31, $25, $15, $35, 	$00, $02, $22, $3c, 	$00, $1A, $39, $0f, 	$00, $0f, $2d, $10
 	
 spritedata:
 ;Y, sprite num, attributes, X
