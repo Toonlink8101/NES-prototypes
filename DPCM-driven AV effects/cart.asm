@@ -88,8 +88,8 @@ reset:
     bpl :-
 
     ;OAM DMA
-    lda #>oam
-    sta $4014
+    ;lda #>oam
+    ;sta $4014
 
 	;set scroll
     lda #$3f    ;$3f00
@@ -111,8 +111,12 @@ loadsprites:
         lda spritedata, x
         sta $0200, x
         inx
-        cpx #$10    ;16bytes (4 bytes per sprite, 4 sprites total)
+        cpx #37 *4    ;sprite amount * 4 bytes per sprite
         bne loadsprites
+	
+	;OAM DMA
+    lda #>oam
+    sta $4014
 
 ;enable interupts
     cli
@@ -461,8 +465,8 @@ Vblank:
 
 palettedata:
 	.byte $00, $0f, $00, $10, 	$00, $0a, $15, $01, 	$00, $29, $28, $27, 	$00, $34, $24, $14 	;background palettes
-	.byte $31, $0f, $15, $30, 	$00, $0f, $11, $30, 	$00, $0f, $30, $27, 	$00, $3c, $2c, $1c 	;sprite palettes
-
+	.byte $31, $25, $15, $35, 	$00, $02, $22, $3c, 	$00, $1A, $39, $0f, 	$00, $0f, $2d, $10 	;sprite palettes
+	
 spritedata:
 ;Y, sprite num, attributes, X
 ;76543210
@@ -473,16 +477,73 @@ spritedata:
 ;|+------- flip sprite horizontally
 ;+-------- flip sprite vertically
 
-	.byte $40, $00, $00, $40
-	.byte $40, $01, $00, $48
-	.byte $48, $10, $00, $40
-	.byte $48, $11, $00, $48
+;right arm
+	;red
+	.byte $80, $60, $00, $60
+	.byte $80, $61, $00, $68
+	.byte $88, $70, $00, $60
+	.byte $88, $71, $00, $68
+	;grey 
+	.byte $89, $55, $03, $6B
 	
-	;sword
-	.byte $50, $08, %00000001, $80
-	.byte $50, $08, %01000001, $88
-	.byte $58, $18, %00000001, $80
-	.byte $58, $18, %01000001, $88
+;left arm
+	;blue
+	.byte $81, $30, $01, $85
+	.byte $80, $31, $01, $8D
+	.byte $88, $40, $01, $87
+	.byte $88, $41, $01, $8F
+	.byte $90, $50, $01, $84
+	.byte $90, $51, $01, $8C
+	;grey
+	.byte $88, $56, $03, $7F
+	
+;body
+	;legs
+	.byte $90, $66, $03, $79
+	.byte $97, $76, $03, $79
+	.byte $97, $75, $03, $71
+	
+	;face
+	.byte $76, $35, $03, $71
+	.byte $77, $36, $03, $79
+	.byte $7E, $45, $03, $71
+	.byte $7F, $46, $03, $79
+
+;"armor"
+	;chestplate
+	.byte $86, $53, $02, $77	;middle plate
+	.byte $86, $52, $02, $6F	;right shoulder	
+	.byte $8E, $62, $02, $6F
+	.byte $8E, $63, $02, $77
+	.byte $96, $72, $02, $6F
+	.byte $96, $73, $02, $77
+	.byte $81, $54, $02, $7F	;left shoulder
+	
+	
+	;helmet
+	.byte $6F, $32, $02, $70
+	.byte $6F, $33, $02, $78
+	.byte $71, $34, $02, $80
+	.byte $77, $42, $02, $70
+	.byte $77, $43, $02, $78
+	.byte $79, $44, $02, $80
+	
+;highlights
+	.byte $7B, $37, $01, $72
+	.byte $78, $47, $81, $7B
+	.byte $7C, $48, $80, $78
+	
+;bottom of red
+	.byte $90, $80, $00, $60
+	.byte $90, $81, $00, $68
+
+
+
+;sword
+	.byte $70, $08, %00000001, $80
+	.byte $70, $08, %01000001, $88
+	.byte $78, $18, %00000001, $80
+	.byte $78, $18, %01000001, $88
 
 .segment "RODATA"
 
