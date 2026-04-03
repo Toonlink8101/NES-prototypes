@@ -27,6 +27,7 @@
 ;other zp vars
 	zp_PPUmask_state: .res 1
 	zp_x_offset: .res 1
+	zp_XY_offset: .res 1
 	zp_y_offset: .res 1
 	zp_FX_state: .res 1
 	zp_temp:    .res 1      ;reserves 1 byte of memory
@@ -377,7 +378,7 @@ timing_over:
 	:
 	
 	; start of midscreen
-	cpx #40
+	cpx #38
 	bne:+
 		;change scroll routine
 		lda #<scroll_IRQ
@@ -393,17 +394,46 @@ timing_over:
 	adc #39-16+1	;max-min+1
 	bcc:+
 		;turn grayscale off
-		lda zp_PPUmask_state
-		and #%11111110
-		sta zp_PPUmask_state
+		;lda zp_PPUmask_state
+		;and #%11111110
+		;sta zp_PPUmask_state
 		
-		; x offset
+		;increment FX state
 		ldy zp_FX_state
 		dey
 		sty zp_FX_state
+		
+		; get x offset
 		lda sine_lookup, Y
 		sta zp_x_offset
+		
+		;calc y pos
+		txa
+		eor #63
+		;clc		;carry clear
+		adc #$FB	;subtract 5
+		asl
+		asl
+		
+		;get y offset
+		clc		;carry not clear
+		adc sine_lookup, Y
 		sta zp_y_offset
+
+			
+		;calc course XY offset
+		;lda zp_y_offset
+		and #%11111000
+		asl
+		asl
+		tay
+		lda zp_x_offset
+		lsr
+		lsr
+		lsr
+		ora identity_table, Y
+		
+		sta zp_XY_offset
 	:
 	; end of midscreen
 	cpx #15
@@ -416,7 +446,30 @@ timing_over:
 		;zero out x offset
 		lda #0
 		sta zp_x_offset
+		
+		;calc y pos
+		txa
+		eor #63
+		;clc		;carry clear
+		adc #$FB	;subtract 5
+		asl
+		asl
 		sta zp_y_offset
+
+			
+		;calc course XY offset
+		;lda zp_y_offset
+		and #%11111000
+		asl
+		asl
+		tay
+		lda zp_x_offset
+		lsr
+		lsr
+		lsr
+		ora identity_table, Y
+		
+		sta zp_XY_offset
 	:
 	cpx #14
 	bne:+
@@ -472,23 +525,20 @@ scroll_IRQ:
 	;tay
 	
 	;time a PPU update
-	; we only have 18 cycles?
 	
-	ldy zp_PPUmask_state	;3
-	ldx #0					;2
-	stx $2006				;4
+	lda #0					;2
+	sta $2006				;4
 	lda zp_y_offset			;3
 	sta $2005				;4
 	lda zp_x_offset			;3
+	ldx zp_XY_offset		;3
 	;wait for hblank
-.repeat 0
+.repeat 2
 	nop
 .endrepeat
 	
 	sta $2005				;4
 	stx $2006				;4
-	;sty $2001				;4
-	bit $2002
 	
 	; for now, wait for timing
 	; 12*2 + 3*4 = 36 cycles
