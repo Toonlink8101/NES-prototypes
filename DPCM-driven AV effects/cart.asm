@@ -26,6 +26,8 @@
 	
 ;other zp vars
 	zp_PPUmask_state: .res 1
+	zp_PPUctrl_state: .res 1
+	zp_nametable_state: .res 1
 	zp_x_offset: .res 1
 	zp_XY_offset: .res 1
 	zp_y_offset: .res 1
@@ -119,6 +121,144 @@ loadsprites:
 	;OAM DMA
     lda #>oam
     sta $4014
+	
+;write background
+
+;point to nametable 0
+	lda #$20
+	sta $2006
+	lda #$00
+	sta $2006
+	
+;fill top tiles
+	;black
+	lda #$90
+	ldx #32*2+2
+	:
+		sta $2007
+		dex
+	bne:-
+	
+	;dark grey
+	lda #$B7
+	ldx #32-4
+	:
+		sta $2007
+		dex
+	bne:-
+	
+	ldx #5
+	:
+		lda #$90	;black
+		sta $2007
+		sta $2007
+		sta $2007
+		sta $2007
+		
+		lda #$B5	;white
+		sta $2007
+		
+		lda #$B6	;grey
+		ldy #32-6
+		:
+			sta $2007
+			dey
+		bne:-
+		
+		lda #$B5	;white
+		sta $2007
+		dex
+	bne:--
+	
+	;black
+	lda #$90
+	sta $2007
+	sta $2007
+	sta $2007
+	sta $2007
+	
+	;dark grey
+	lda #$B7
+	ldx #32-4
+	:
+		sta $2007
+		dex
+	bne:-
+	
+	;black
+	lda #$90
+	ldx #2+32*2
+	:
+		sta $2007
+		dex
+	bne:-
+	
+;point to attibute table 0
+	lda #$23
+	sta $2006
+	lda #$D8
+	sta $2006
+	
+;write attibute checker pattern
+	lda #%11100100
+	
+	ldx #5*8
+	:
+		sta $2007
+		
+		;lfsr
+		ldy #8
+		:
+			asl
+			bcc:+
+				eor #%11100001
+			:
+		dey
+		bne:--
+		
+		dex
+	bne:---
+	
+;point to attibute table 2
+	lda #$2B
+	sta $2006
+	lda #$C0
+	sta $2006
+	
+;write attibute checker pattern
+	lda #%11100100
+	
+	ldx #5*8
+	:
+		sta $2007
+		
+		;lfsr
+		asl
+		bcc:+
+			eor #%11100001
+		:
+		
+		dex
+	bne:--
+	
+;point to lower portion of nametable 2
+	lda #$2A
+	sta $2006
+	lda #256-64
+	sta $2006
+	
+;fill black on bottom
+	lda #$90
+	ldx #0
+	:
+		sta $2007
+		dex
+	bne:-
+	
+;reset PPUADDR
+	lda #0
+	sta $2006
+	sta $2006	
 
 ;enable interupts
     cli
@@ -126,6 +266,7 @@ loadsprites:
 	;lda #%10010000		; enable NMI, BG pattern table 1
 	lda #%00010000		; disable NMI, BG pattern table 1
     sta $2000
+	sta zp_PPUctrl_state
 
     lda #%00011110          ;show sprites and background
     sta $2001
@@ -328,8 +469,8 @@ IRQ:
 	
 	sta $2005				;4
 	bit $2002				;4
-	;sty $2001				;4
-	bit $2002
+	sty $2001				;4
+	;bit $2002
 	
 	; for now, wait for timing
 	; 12*2 + 3*4 = 36 cycles
@@ -377,9 +518,22 @@ timing_over:
 		jmp Vblank
 	:
 	
+	; before midscreen
+	cpx #39
+	bne:+
+		;clear color emphasis and grayscale
+		lda zp_PPUmask_state
+		and #%00011110
+		sta zp_PPUmask_state
+	:
+	
 	; start of midscreen
 	cpx #38
 	bne:+
+		;update nametable state
+		lda #%00001000
+		sta zp_nametable_state
+		
 		;change scroll routine
 		lda #<scroll_IRQ
         sta <zp_irq_addr
@@ -411,12 +565,16 @@ timing_over:
 		txa
 		eor #63
 		;clc		;carry clear
-		adc #$FB	;subtract 5
+		;adc #256-4	;subtract 4
+		;adc #256-8	;subtract 8
+		asl
+		asl
 		asl
 		asl
 		
 		;get y offset
-		clc		;carry not clear
+		and #%01110000
+		;clc		;carry clear
 		adc sine_lookup, Y
 		sta zp_y_offset
 
@@ -438,14 +596,20 @@ timing_over:
 	; end of midscreen
 	cpx #15
 	bne:+
+		;update nametable state
+		lda #%00001000
+		sta zp_nametable_state
+		
 		;turn grayscale on
 		;lda zp_PPUmask_state
 		;ora #%00000001
 		;sta zp_PPUmask_state
 		
-		;zero out x offset
+		;reset x offset and nametable
 		lda #0
 		sta zp_x_offset
+		lda #%00001000
+		sta zp_nametable_state
 		
 		;calc y pos
 		txa
@@ -473,6 +637,11 @@ timing_over:
 	:
 	cpx #14
 	bne:+
+		;color emphasis and grayscale
+		lda zp_PPUmask_state
+		ora #%00000000
+		sta zp_PPUmask_state
+	
 		;change scroll routine
 		lda #<IRQ
         sta <zp_irq_addr
@@ -526,7 +695,7 @@ scroll_IRQ:
 	
 	;time a PPU update
 	
-	lda #0					;2
+	lda zp_nametable_state	;3
 	sta $2006				;4
 	lda zp_y_offset			;3
 	sta $2005				;4
@@ -589,17 +758,21 @@ Vblank:
 	lda #$00
 	sta $2006
 	
-	lda zp_PPUmask_state
-	sta $2001
+	;lda zp_PPUmask_state
+	;sta $2001
 	
-	lda #$9B
-	sta temp
-	ldx #60
-	:
-		lda temp
-		sta $2007
-		dex
-	bne:-
+	lda zp_PPUctrl_state
+	sta $2000
+	
+	;AAAAAAAAAAA
+	;lda #$9B
+	;sta temp
+	;ldx #60
+	;:
+	;	lda temp
+	;	sta $2007
+	;	dex
+	;bne:-
 	
 	
 	;reset PPUADDR
@@ -614,9 +787,9 @@ Vblank:
 
 palettedata:
 ;background palettes
-	.byte $31, $27, $2B, $14, 	$00, $0a, $15, $01, 	$00, $29, $28, $27, 	$00, $34, $24, $14
+	.byte $0f, $00, $10, $30, 	$00, $0a, $15, $01, 	$00, $29, $28, $27, 	$00, $34, $24, $14
 ;sprite palettes
-	.byte $31, $25, $15, $35, 	$00, $02, $22, $3c, 	$00, $1A, $39, $0f, 	$00, $0f, $2d, $10
+	.byte $0f, $25, $15, $35, 	$00, $02, $22, $3c, 	$00, $1A, $39, $0f, 	$00, $0f, $2d, $10
 	
 spritedata:
 ;Y, sprite num, attributes, X
@@ -687,14 +860,6 @@ spritedata:
 ;bottom of red
 	.byte $90, $80, $00, $60
 	.byte $90, $81, $00, $68
-
-
-
-;sword
-	.byte $70, $08, %00000001, $80
-	.byte $70, $08, %01000001, $88
-	.byte $78, $18, %00000001, $80
-	.byte $78, $18, %01000001, $88
 
 .segment "RODATA"
 
