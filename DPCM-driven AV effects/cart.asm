@@ -884,7 +884,6 @@ identity_table:
 	.byte $f0,$f1,$f2,$f3,$f4,$f5,$f6,$f7,$f8,$f9,$fa,$fb,$fc,$fd,$fe,$ff
 	
 irq_freq_table:
-
 ;smoother audio, but no OAM DMA & less visual IRQs
 ;$88 signals vblank
 	;frame 1 (2 cycles longer)
@@ -902,7 +901,7 @@ irq_freq_table:
 	.byte $8D,$8d
 	.byte $8D,$8d,$8d, $8D,$8d,$8d,   $8d,$8d
 	
-	.byte $8a,$8d,$8a, $8a,$8a,$8a,  $8a,$8e
+	.byte $8d,$8a,$8e, $8a,$8a,$8a,  $8a,$8a
 	
 	.byte $88
 	
@@ -923,7 +922,7 @@ irq_freq_table:
 	.byte $8D,$8d
 	.byte $8D,$8d,$8d, $8D,$8d,$8d,   $8d,$8d
 	
-	.byte $8a,$8d,$8a, $8a,$8a,$8a,  $8c,$8c
+	.byte $8d,$8c,$8c, $8a,$8a,$8a,  $8a,$8a
 	
 	.byte $88
 
