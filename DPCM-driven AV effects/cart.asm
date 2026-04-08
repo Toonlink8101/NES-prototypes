@@ -18,13 +18,15 @@
 .segment "BSS"
 	temp: .res 1
 	counter_word: .res 2
+	player_y:	.res 1
+	player_x:	.res 1
 
 .segment "ZEROPAGE"
 ; IRQ trampoline
 	zp_irq_jmp: .res 1
 	zp_irq_addr: .res 2
 	
-;other zp vars
+;PPU states and midline scroll vars
 	zp_PPUmask_state: .res 1
 	zp_PPUctrl_state: .res 1
 	zp_nametable_state: .res 1
@@ -35,7 +37,13 @@
 	zp_temp:    .res 1      ;reserves 1 byte of memory
 	irq_counter: .res 1	
 	;NMI_DMC_output: .res 1 ; init to zero, only used once per frame
+
+;other zp vars
+	zp_buttons: .res 1
+	zp_previous_buttons: .res 1
 	
+	
+	player_count = 5
 
 .segment "CODE"
 reset:
@@ -115,7 +123,7 @@ loadsprites:
         lda spritedata, x
         sta $0200, x
         inx
-        cpx #37 *4    ;sprite amount * 4 bytes per sprite
+        cpx #(37 + 4+4*player_count) *4    ;sprite amount * 4 bytes per sprite
         bne loadsprites
 	
 	;OAM DMA
@@ -268,7 +276,8 @@ loadsprites:
     sta $2000
 	sta zp_PPUctrl_state
 
-    lda #%00011110          ;show sprites and background
+    lda #%00011110          ;show sprites and background, show left edge
+    ;lda #%00011000          ;show sprites and background, hide left edge
     sta $2001
 	sta zp_PPUmask_state
 
@@ -432,7 +441,7 @@ nmi:
 ; some of these could be made zeropage for speed
 ; maybe the volume variable should also hold the waveform
 .segment "BSS"
-	irq_active: .res 1
+	;irq_active: .res 1
 
 
 .segment "CODE"
@@ -546,7 +555,7 @@ timing_over:
 	;clc	;carry already clear
 	adc #$ff-39		;$ff-max
 	adc #39-16+1	;max-min+1
-	bcc:+
+	bcc end_of_midscreen
 		;turn grayscale off
 		;lda zp_PPUmask_state
 		;and #%11111110
@@ -558,8 +567,20 @@ timing_over:
 		sty zp_FX_state
 		
 		; get x offset
-		lda sine_lookup, Y
+		lda sine_11_32, Y
+		;sec
+		;sbc #8
 		sta zp_x_offset
+		;clc
+		
+		;txa
+		;and #1
+		;bne:+
+			lda #$FF
+			eor zp_x_offset
+			sta zp_x_offset
+		;:
+		
 		
 		;calc y pos
 		txa
@@ -570,12 +591,12 @@ timing_over:
 		asl
 		asl
 		asl
-		asl
+		;asl
 		
 		;get y offset
-		and #%01110000
-		;clc		;carry clear
-		adc sine_lookup, Y
+		anc #%01110000	;clears carry b/c bit 7 = 0
+		ora #%00001000	;add 8
+		adc sine_11_8, Y
 		sta zp_y_offset
 
 			
@@ -592,7 +613,8 @@ timing_over:
 		ora identity_table, Y
 		
 		sta zp_XY_offset
-	:
+end_of_midscreen:
+
 	; end of midscreen
 	cpx #15
 	bne:+
@@ -751,6 +773,21 @@ Vblank:
 	
 	sta DMC_output	
 	
+;Read controller 1
+	;taken from https://www.nesdev.org/wiki/Controller_reading_code#Basic_Example
+	;should be 132 cycles
+    lda #$01
+    sta $4016
+    sta zp_buttons
+    lsr			; now A is 0
+    ; By storing 0 into $4016, the strobe bit is cleared and the reloading stops.
+    ; This allows all 8 buttons (newly reloaded) to be read from $4016.
+    sta $4016
+	:
+		lda $4016
+		lsr			; bit 0 -> Carry
+		rol zp_buttons	; Carry -> bit 0; bit 7 -> Carry
+    bcc:-
 	
 	;update PPU
 	lda #$20
@@ -775,6 +812,41 @@ Vblank:
 	;bne:-
 	
 	
+	;update OAM
+	ldx #0
+	stx $2003
+	
+	;write sprite buffer
+	lda #$FF
+.repeat 8
+	sta $2004
+.endrepeat
+	
+	; update player sprite
+	ldx #$08	;skip buffer
+	:
+		;write 4 bytes
+		thing .set 0
+	.repeat 8
+		lda $0200+thing, X
+		sta $2004
+		thing .set thing+1
+	.endrepeat
+		
+		;increment x by 4
+		txa
+		;axs #256- 4
+		axs #256- 8
+		
+		cpx #(player_count*4+2) *4	;sprite amount * 4 bytes per sprite
+						; +2 is for buffer sprites
+	bne:-
+	
+	;reset OAM ADDR
+	lda #0
+	sta $2003
+	
+	
 	;reset PPUADDR
 	lda #0
 	sta $2006
@@ -782,8 +854,80 @@ Vblank:
 	
 	;reset scroll?
 	
+;read inputs
+	lda zp_buttons
+	and #%00001010
+	lsr
+	and zp_buttons
+	beq:+
+		; Use previous frame's directions
+		lda zp_buttons
+		eor zp_previous_buttons
+		and #%11110000
+		eor zp_previous_buttons
+		sta zp_buttons
+	:
+	
+		
+	lda zp_buttons
+	and #BUTTON_RIGHT
+	beq:+
+		inc player_x
+	:
+
+	lda zp_buttons
+	and #BUTTON_LEFT
+	beq:+
+		dec player_x
+	:
+	
+	lda zp_buttons
+	and #BUTTON_DOWN
+	beq:+
+		inc player_y
+	:
+	
+	lda zp_buttons
+	and #BUTTON_UP
+	beq:+
+		dec player_y
+	:
+
+	;write new y position to OAM mirror
+	lda player_y
+
+	count .set 0
+.repeat player_count
+	sta $0208+4*0+count*16
+	sta $0208+4*1+count*16
+	adc #8+1
+	sta $0208+4*2+count*16
+	sta $0208+4*3+count*16
+	adc #8+1
+	count .set count +1
+.endrepeat
+	
+	;write new x position to OAM mirror
+	count .set 0
+.repeat player_count
+	lda player_x
+	sta $0208+3+4*0+count*16
+	sta $0208+3+4*2+count*16
+	adc #8
+	sta $0208+3+4*1+count*16
+	sta $0208+3+4*3+count*16
+	count .set count +1
+.endrepeat
+	
+	
+	lda zp_buttons
+	sta zp_previous_buttons
+	
+	
 	jmp end_of_vblank
 
+
+.segment "RODATA"
 
 palettedata:
 ;background palettes
@@ -800,6 +944,24 @@ spritedata:
 ;||+------ priority (0: in front of background; 1: behind background)
 ;|+------- flip sprite horizontally
 ;+-------- flip sprite vertically
+
+;buffer
+	.byte $FF, $FF, $FF, $FF
+	.byte $FF, $FF, $FF, $FF
+
+count .set 0
+.repeat player_count
+;player
+	.byte $50+count*16, $00, $00, $60
+	.byte $50+count*16, $01, $00, $68
+	.byte $58+count*16, $10, $00, $60
+	.byte $58+count*16, $11, $00, $68
+	count .set count + 1
+.endrepeat
+
+;buffer
+	.byte $FF, $FF, $FF, $FF
+	.byte $FF, $FF, $FF, $FF	
 
 ;right arm
 	;red
@@ -860,8 +1022,6 @@ spritedata:
 ;bottom of red
 	.byte $90, $80, $00, $60
 	.byte $90, $81, $00, $68
-
-.segment "RODATA"
 
 .align 256
 
@@ -939,9 +1099,32 @@ DMC_wiggle_sample:
 	.byte $AA
 	
 
-sine_lookup:
+;scroll offset lookup tables
+sine_11_8:
+	; 11 sines, height 8
 	.byte 4,4,5,6,7,7,7,7,6,6,5,4,3,2,1,1,0,0,0,0,1,2,2,3,4,5,6,6,7,7,7,7,6,5,4,3,2,2,1,0,0,0,0,1,1,2,3,4,5,6,6,7,7,7,7,6,5,5,4,3,2,1,0,0,0,0,1,1,2,3,4,5,5,6,7,7,7,7,6,6,5,4,3,2,1,1,0,0,0,0,1,2,3,3,4,5,6,7,7,7,7,6,6,5,4,3,2,1,1,0,0,0,0,1,1,2,3,4,5,6,6,7,7,7,7,6,5,4,3,3,2,1,0,0,0,0,1,1,2,3,4,5,6,6,7,7,7,7,6,5,5,4,3,2,1,1,0,0,0,0,1,2,3,4,5,5,6,7,7,7,7,6,6,5,4,3,2,1,1,0,0,0,0,1,2,2,3,4,5,6,7,7,7,7,6,6,5,4,3,2,2,1,0,0,0,0,1,1,2,3,4,5,6,6,7,7,7,7,6,5,4,4,3,2,1,0,0,0,0,1,1,2,3,4,5,6,6,7,7,7,7,6,6,5,4,3,2,1,1,0,0,0,0,1,2,3
-	
+
+sine_11_16:
+	; 11 sines, height 16
+	.byte 8,10,11,13,14,15,15,15,14,12,11,9,7,5,3,2,1,0,0,1,2,3,5,7,9,11,13,14,15,15,15,14,13,11,9,7,5,3,2,1,0,0,0,1,3,5,6,9,10,12,14,15,15,15,14,13,12,10,8,6,4,2,1,0,0,0,1,2,4,6,8,10,12,13,14,15,15,14,13,12,10,8,6,4,3,1,0,0,0,1,2,4,5,7,9,11,13,14,15,15,15,14,12,11,9,7,5,3,2,1,0,0,1,2,3,5,7,9,11,12,14,15,15,15,14,13,11,9,7,5,4,2,1,0,0,0,1,3,4,6,8,10,12,13,14,15,15,14,13,12,10,8,6,4,2,1,0,0,0,1,2,4,6,8,10,12,13,14,15,15,15,14,12,10,9,6,5,3,1,0,0,0,1,2,3,5,7,9,11,13,14,15,15,15,14,13,11,9,7,5,3,2,1,0,0,1,2,3,5,7,9,11,12,14,15,15,15,14,13,11,10,8,6,4,2,1,0,0,0,1,3,4,6,8,10,12,13,14,15,15,14,13,12,10,8,6,4,3,1,0,0,0,1,2,4,6
+
+sine_11_32:	
+	; 11 sines, height 32
+	.byte 16,20,24,27,29,31,31,30,28,25,22,18,14,10,6,3,1,0,0,1,4,7,10,15,19,23,26,29,30,31,30,29,26,23,19,15,11,7,4,2,0,0,1,3,6,9,13,18,22,25,28,30,31,31,29,27,24,20,16,12,8,5,2,1,0,1,2,5,8,12,16,21,24,27,30,31,31,30,28,25,21,17,13,9,6,3,1,0,0,2,4,7,11,15,19,23,27,29,31,31,30,28,26,22,18,14,10,6,3,1,0,0,1,3,6,10,14,18,22,26,28,30,31,31,29,27,23,19,15,11,7,4,2,0,0,1,3,6,9,13,17,21,25,28,30,31,31,30,27,24,21,16,12,8,5,2,1,0,1,2,5,8,12,16,20,24,27,29,31,31,30,28,25,22,18,13,9,6,3,1,0,0,2,4,7,11,15,19,23,26,29,30,31,30,29,26,23,19,15,10,7,4,1,0,0,1,3,6,10,14,18,22,25,28,30,31,31,29,27,24,20,16,12,8,4,2,0,0,1,3,5,9,13,17,21,25,28,30,31,31,30,28,25,21,17,13,9,5,3,1,0,0,2,4,8,12
+
+sine_11_64:
+	; 11 sines, height 64
+	.byte 32,40,48,55,59,62,63,61,57,52,45,37,28,20,12,6,2,0,0,3,7,14,21,30,38,46,53,58,62,63,62,59,53,47,39,30,22,14,8,3,1,0,2,6,12,19,27,36,44,51,57,61,63,62,60,55,49,41,33,24,16,10,4,1,0,1,5,10,17,25,33,42,49,56,60,63,63,61,57,51,43,35,26,18,11,6,2,0,1,4,8,15,23,31,40,47,54,59,62,63,62,58,52,45,37,29,21,13,7,3,0,0,3,7,13,21,29,37,45,52,58,62,63,62,59,54,47,40,31,23,15,8,4,1,0,2,6,11,18,26,35,43,51,57,61,63,63,60,56,49,42,33,25,17,10,5,1,0,1,4,10,16,24,33,41,49,55,60,62,63,61,57,51,44,36,27,19,12,6,2,0,1,3,8,14,22,30,39,47,53,59,62,63,62,58,53,46,38,30,21,14,7,3,0,0,2,6,12,20,28,37,45,52,57,61,63,62,59,55,48,40,32,23,16,9,4,1,0,1,5,11,18,26,34,42,50,56,60,63,63,60,56,50,42,34,26,18,11,5,1,0,1,4,9,16,23
+
+sine_10_8:
+	;10 sines, height 8
+	.byte 4,4,5,6,6,7,7,7,7,6,6,5,4,3,2,2,1,0,0,0,0,0,1,1,2,3,4,5,5,6,7,7,7,7,7,6,5,5,4,3,2,1,1,0,0,0,0,1,1,2,3,3,4,5,6,6,7,7,7,7,6,6,5,4,3,3,2,1,1,0,0,0,0,1,1,2,3,4,5,5,6,7,7,7,7,7,6,6,5,4,3,2,2,1,0,0,0,0,0,1,2,2,3,4,5,6,6,7,7,7,7,6,6,5,4,4,3,2,1,1,0,0,0,0,1,1,2,3,4,4,5,6,6,7,7,7,7,6,6,5,4,3,2,2,1,0,0,0,0,0,1,1,2,3,4,5,5,6,7,7,7,7,7,6,5,5,4,3,2,1,1,0,0,0,0,1,1,2,3,3,4,5,6,6,7,7,7,7,6,6,5,4,3,3,2,1,1,0,0,0,0,1,1,2,3,4,5,5,6,7,7,7,7,7,6,6,5,4,3,2,2,1,0,0,0,0,0,1,2,2,3,4,5,6,6,7,7,7,7,6,6,5,4,4,3,2,1,1,0,0,0,0,1,1,2,3
+
+	; 11 saws
+	;.byte 0,0,1,1,1,2,2,2,2,3,3,3,4,4,4,5,5,5,5,6,6,6,7,7,0,1,1,1,1,2,2,2,3,3,3,4,4,4,4,5,5,5,6,6,6,7,7,0,0,1,1,1,2,2,2,3,3,3,3,4,4,4,5,5,5,6,6,6,6,7,0,0,1,1,1,2,2,2,2,3,3,3,4,4,4,5,5,5,5,6,6,6,7,7,0,1,1,1,1,2,2,2,3,3,3,4,4,4,5,5,5,5,6,6,6,7,7,0,0,1,1,1,2,2,2,3,3,3,4,4,4,4,5,5,5,6,6,6,7,7,0,0,1,1,1,2,2,2,3,3,3,3,4,4,4,5,5,5,6,6,6,6,7,0,0,1,1,1,2,2,2,2,3,3,3,4,4,4,5,5,5,5,6,6,6,7,7,0,1,1,1,1,2,2,2,3,3,3,4,4,4,4,5,5,5,6,6,6,7,7,0,0,1,1,1,2,2,2,3,3,3,3,4,4,4,5,5,5,6,6,6,7,7,0,0,1,1,1,2,2,2,2,3,3,3,4,4,4,5,5,5,6,6,6,6,7
+
+	; 8 saws
+	;.byte 0,0,0,1,1,1,1,2,2,2,2,2,3,3,3,3,4,4,4,4,4,5,5,5,5,5,6,6,6,6,7,7,0,0,0,1,1,1,1,2,2,2,2,2,3,3,3,3,4,4,4,4,4,5,5,5,5,5,6,6,6,6,7,7,0,0,0,1,1,1,1,2,2,2,2,2,3,3,3,3,4,4,4,4,4,5,5,5,5,5,6,6,6,6,7,7,0,0,0,1,1,1,1,2,2,2,2,2,3,3,3,3,4,4,4,4,4,5,5,5,5,5,6,6,6,6,7,7,0,0,0,1,1,1,1,2,2,2,2,2,3,3,3,3,4,4,4,4,4,5,5,5,5,5,6,6,6,6,7,7,0,0,0,1,1,1,1,2,2,2,2,2,3,3,3,3,4,4,4,4,4,5,5,5,5,5,6,6,6,6,7,7,0,0,0,1,1,1,1,2,2,2,2,2,3,3,3,3,4,4,4,4,4,5,5,5,5,5,6,6,6,6,7,7,0,0,0,1,1,1,1,2,2,2,2,2,3,3,3,3,4,4,4,4,4,5,5,5,5,5,6,6,6,6,7,7
 
 ;LUT_offset: .res 1
 .segment "VECTORS"
@@ -959,3 +1142,16 @@ sine_lookup:
 ;various includes
 .include "sync_vbl_long.asm"
 .include "dmc_sync.asm"
+
+
+
+;Constants
+
+BUTTON_A      = 1 << 7
+BUTTON_B      = 1 << 6
+BUTTON_SELECT = 1 << 5
+BUTTON_START  = 1 << 4
+BUTTON_UP     = 1 << 3
+BUTTON_DOWN   = 1 << 2
+BUTTON_LEFT   = 1 << 1
+BUTTON_RIGHT  = 1 << 0
