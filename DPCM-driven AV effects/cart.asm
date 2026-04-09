@@ -124,6 +124,7 @@ loadsprites:
         sta $0200, x
         inx
         cpx #(37 + 4+4*player_count) *4    ;sprite amount * 4 bytes per sprite
+        ;cpx #(4+4*player_count) *4    ;sprite amount * 4 bytes per sprite
         bne loadsprites
 	
 	;OAM DMA
@@ -141,14 +142,14 @@ loadsprites:
 ;fill top tiles
 	;black
 	lda #$90
-	ldx #32*2+2
+	ldx #2;+32;*2
 	:
 		sta $2007
 		dex
 	bne:-
 	
-	;dark grey
-	lda #$B7
+	;top edge
+	lda #$B8
 	ldx #32-4
 	:
 		sta $2007
@@ -166,8 +167,32 @@ loadsprites:
 		lda #$B5	;white
 		sta $2007
 		
-		lda #$B6	;grey
-		ldy #32-6
+		lda #$90	;blank
+		sta $2007
+		
+		lda #$A8	;N
+		sta $2007
+		lda #$AC	;R
+		sta $2007
+		lda #$A9	;O
+		sta $2007
+		lda #$A7	;M
+		sta $2007
+		
+		lda #$90	;blank
+		sta $2007
+		
+		lda #$A9	;O
+		sta $2007
+		lda #$A8	;N
+		sta $2007
+		lda #$A6	;L
+		sta $2007
+		lda #$B3	;Y
+		sta $2007
+		
+		lda #$90	;blank
+		ldy #32-6-10
 		:
 			sta $2007
 			dey
@@ -185,8 +210,8 @@ loadsprites:
 	sta $2007
 	sta $2007
 	
-	;dark grey
-	lda #$B7
+	;bottom edge
+	lda #$B9
 	ldx #32-4
 	:
 		sta $2007
@@ -527,6 +552,71 @@ timing_over:
 		jmp Vblank
 	:
 	
+	cpx #54
+	bne:+
+		;reset scroll with coarse scroll
+		
+		;enable PPU
+		lda zp_PPUmask_state
+		ora #%00011000
+		sta zp_PPUmask_state
+		
+		;calc y pos
+		txa
+		eor #63
+		;clc		;carry clear
+		adc #$FB	;subtract 5
+		asl
+		asl
+		sta zp_y_offset
+		
+		; zp_y_offset = 00yyNNYY
+		; zp_x_offset = YYYXXXXX
+		
+		;calc first offset w/o nametable
+		
+		;fetch high bits of Y offset
+		and #%11000000
+		clc
+		rol
+		rol
+		rol
+		tay
+		
+		;fetch low bits of Y offset
+		lda zp_y_offset
+		and #%00000011
+		asl
+		asl
+		asl
+		asl
+		
+		;combine
+		ora identity_table, Y
+		;00yy00YY
+		sta zp_y_offset
+		
+		; second offset ignored
+		lda #0
+		sta zp_x_offset
+		
+		
+		;change to scroll routine
+		lda #<coarse_scroll_IRQ
+        sta <zp_irq_addr
+        lda #>coarse_scroll_IRQ
+        sta zp_irq_addr+1
+	:
+	
+	cpx #53
+	bne:+
+		;change back to default routine
+		lda #<IRQ
+        sta <zp_irq_addr
+        lda #>IRQ
+        sta zp_irq_addr+1
+	:
+	
 	; before midscreen
 	cpx #39
 	bne:+
@@ -670,6 +760,16 @@ end_of_midscreen:
         lda #>IRQ
         sta zp_irq_addr+1
 	:
+	
+	cpx #0
+	bne:++
+		lda #64
+		cmp irq_counter
+		bne:+
+			lda #0
+			sta irq_counter
+		:
+	:
 
 	; Iterate software channels
 	; trashes A,X,Y
@@ -700,65 +800,63 @@ scroll_IRQ:
 
 	; update irq count
 	dec irq_counter
-	;clc
-	
-	; flag vblank
-	;bne:+
-	;	sec
-	;:
 
 	;load slower DMC frequency
 	ldx irq_counter
 	lda irq_freq_table, X
 	sta $4010
 	
-	;keep freq in Y for later
-	;tay
-	
 	;time a PPU update
-	
 	lda zp_nametable_state	;3
 	sta $2006				;4
 	lda zp_y_offset			;3
 	sta $2005				;4
 	lda zp_x_offset			;3
 	ldx zp_XY_offset		;3
+	
 	;wait for hblank
-.repeat 2
+.repeat 0	;1 cycle left
 	nop
 .endrepeat
 	
 	sta $2005				;4
 	stx $2006				;4
 	
-	; for now, wait for timing
-	; 12*2 + 3*4 = 36 cycles
-	;.repeat 12
-	;	nop
-	;.endrep
-	;bit $2002
-	;bit $2002
-	;bit $2002
-	
-;output_dmc:
-	
-	; time a write to DMC_output from previous irq
-	lda DMC_output
-	sta $4011
-	
-	;store fast DMC frequency
-	lda #%10001111
+	jmp output_dmc			;3
+
+
+; uses two $2006 writes to coarsely scroll
+; zp_y_offset = 00yyNNYY
+; zp_x_offset = YYYXXXXX
+coarse_scroll_IRQ:
+	; preserve registers
+	sta preserve_A
+	stx preserve_X
+	sty preserve_Y
+
+	; update irq count
+	dec irq_counter
+
+	;load slower DMC frequency
+	ldx irq_counter
+	lda irq_freq_table, X
 	sta $4010
 	
-	;Acknowledge/reset IRQ
-	lda #$10
-	sei
-	sta $4015
-	sta $4015
-	sta $4015
-	cli
+	;time a PPU update
+	ldy zp_PPUmask_state	;3
+	lda zp_y_offset		;3
+	sta $2006				;4
+	lda zp_x_offset		;3
+	;wait for hblank
+.repeat 2
+	nop
+.endrepeat
+	
+	sta $2006				;4
+	sty $2001				;4
+	
+	jmp output_dmc			;3
 
-	jmp timing_over
 
 ; end of IRQs
 
@@ -789,27 +887,17 @@ Vblank:
 		rol zp_buttons	; Carry -> bit 0; bit 7 -> Carry
     bcc:-
 	
-	;update PPU
-	lda #$20
-	sta $2006
-	lda #$00
-	sta $2006
+	
+	;disable PPU and update state
+	lda zp_PPUmask_state
+	and #%11100111
+	sta zp_PPUmask_state
 	
 	;lda zp_PPUmask_state
-	;sta $2001
+	sta $2001
 	
 	lda zp_PPUctrl_state
 	sta $2000
-	
-	;AAAAAAAAAAA
-	;lda #$9B
-	;sta temp
-	;ldx #60
-	;:
-	;	lda temp
-	;	sta $2007
-	;	dex
-	;bne:-
 	
 	
 	;update OAM
@@ -846,6 +934,24 @@ Vblank:
 	lda #0
 	sta $2003
 	
+count .set 0
+.repeat 2
+	;point PPU to row
+	lda #$20
+	sta $2006
+	lda #3+32+64*count
+	sta $2006
+	
+	;AAAAAAAAAAA
+	ldy #32-6
+	:
+		lda #$9B
+		lda #$9B
+		sta $2007
+		dey
+	bne:-
+	count .set count +1
+.endrepeat
 	
 	;reset PPUADDR
 	lda #0
@@ -1045,7 +1151,8 @@ identity_table:
 	
 irq_freq_table:
 ;smoother audio, but no OAM DMA & less visual IRQs
-;$88 signals vblank
+;$88 can signal vblank
+.repeat 2
 	;frame 1 (2 cycles longer)
 	.byte $8d
 	
@@ -1065,8 +1172,9 @@ irq_freq_table:
 	
 	.byte $88
 	
+.endrepeat
 	
-.repeat 3
+.repeat 2
 	;frame 2-4
 	.byte $8d
 	
