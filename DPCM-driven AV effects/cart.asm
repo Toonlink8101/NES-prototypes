@@ -20,6 +20,8 @@
 	counter_word: .res 2
 	player_y:	.res 1
 	player_x:	.res 1
+	
+	frame_count: .res 1
 
 .segment "ZEROPAGE"
 ; IRQ trampoline
@@ -43,7 +45,7 @@
 	zp_previous_buttons: .res 1
 	
 	
-	player_count = 5
+	player_count = 3
 
 .segment "CODE"
 reset:
@@ -610,10 +612,10 @@ timing_over:
 	
 	cpx #53
 	bne:+
-		;change back to default routine
-		lda #<IRQ
+		;change routine to empty
+		lda #<empty_IRQ
         sta <zp_irq_addr
-        lda #>IRQ
+        lda #>empty_IRQ
         sta zp_irq_addr+1
 	:
 	
@@ -621,9 +623,9 @@ timing_over:
 	cpx #39
 	bne:+
 		;clear color emphasis and grayscale
-		lda zp_PPUmask_state
-		and #%00011110
-		sta zp_PPUmask_state
+		;lda zp_PPUmask_state
+		;and #%00011110
+		;sta zp_PPUmask_state
 	:
 	
 	; start of midscreen
@@ -778,13 +780,13 @@ end_of_midscreen:
 	
 	sta DMC_output
 	
-end_of_vblank:
-	
 	; restore registers
 	; 9 cycles
 	lda preserve_A
 	ldx preserve_X
 	ldy preserve_Y
+	
+end_of_vblank:
 	
 	bit $2002
 	
@@ -858,11 +860,43 @@ coarse_scroll_IRQ:
 	jmp output_dmc			;3
 
 
+empty_IRQ:
+	; preserve registers
+	sta preserve_A
+	stx preserve_X
+	sty preserve_Y
+
+	; update irq count
+	dec irq_counter
+	
+	;load slower DMC frequency
+	ldx irq_counter
+	lda irq_freq_table, X
+	sta $4010
+	
+	; for now, wait for timing
+	.repeat 14
+		nop
+	.endrep
+
+	jmp output_dmc
+
+
 ; end of IRQs
 
 ;;;
 Vblank:
 ;;;
+
+	;since this will be interrupted, push preserved registers to stack
+	lda preserve_A
+	pha
+	lda preserve_X
+	pha
+	lda preserve_Y
+	pha
+
+
 	; since this will be interupted by other IRQs,
 	; Iterate software channels
 	; trashes A,X,Y
@@ -913,7 +947,7 @@ Vblank:
 	; update player sprite
 	ldx #$08	;skip buffer
 	:
-		;write 4 bytes
+		;write 8 bytes (2 sprites)
 		thing .set 0
 	.repeat 8
 		lda $0200+thing, X
@@ -921,7 +955,7 @@ Vblank:
 		thing .set thing+1
 	.endrepeat
 		
-		;increment x by 4
+		;increment x by 8
 		txa
 		;axs #256- 4
 		axs #256- 8
@@ -932,10 +966,10 @@ Vblank:
 	
 	;reset OAM ADDR
 	lda #0
-	sta $2003
+	;sta $2003
 	
 count .set 0
-.repeat 2
+.repeat 1
 	;point PPU to row
 	lda #$20
 	sta $2006
@@ -960,6 +994,191 @@ count .set 0
 	
 	;reset scroll?
 	
+	;inc frame count
+	lda frame_count
+	anc #%00011111		;clears carry
+	adc #1
+	sta frame_count
+	
+	
+	;update sound
+	tay
+	
+	cpy #$00
+	bne:+
+		lda #<Pulse_chan1
+		ldx #>Pulse_chan1
+		sta waveforms+0
+		stx waveforms+1
+		
+		channel .set 0*5
+		lda #4
+		sta channel_vars+channel+divider
+		lda #0
+		sta channel_vars+channel+counter
+		lda #$0;4
+		sta channel_vars+channel+volume
+		lda #$AA
+		sta channel_vars+channel+lfsr
+		lda #4
+		sta channel_vars+channel+lfsr_tap
+		
+		
+		lda #<Pulse_chan2
+		ldx #>Pulse_chan2
+		sta waveforms+2
+		stx waveforms+3
+		
+		channel .set 1*5
+		lda #10
+		sta channel_vars+channel+divider
+		lda #1
+		sta channel_vars+channel+counter
+		lda #$0;4
+		sta channel_vars+channel+volume
+		lda #$AA
+		sta channel_vars+channel+lfsr
+		lda #10
+		sta channel_vars+channel+lfsr_tap
+		
+		
+		ldx #<Pulse_chan3
+		ldx #>Pulse_chan3
+		sta waveforms+4
+		stx waveforms+5
+		
+		channel .set 2*5
+		lda #6
+		sta channel_vars+channel+divider
+		lda #2
+		sta channel_vars+channel+counter
+		lda #$0;4
+		sta channel_vars+channel+volume
+		lda #$AA
+		sta channel_vars+channel+lfsr
+		lda #6
+		sta channel_vars+channel+lfsr_tap
+		
+		
+		lda #<Pulse_chan4
+		ldx #>Pulse_chan4
+		sta waveforms+6
+		stx waveforms+7
+		
+		channel .set 3*5
+		lda #15
+		sta channel_vars+channel+divider
+		lda #3
+		sta channel_vars+channel+counter
+		lda #$0;4
+		sta channel_vars+channel+volume
+		lda #$AA
+		sta channel_vars+channel+lfsr
+		lda #15
+		sta channel_vars+channel+lfsr_tap
+	:
+	
+	cpy #%10
+	bne:+
+		lda #<Pulse_chan1
+		ldx #>Pulse_chan1
+		sta waveforms+0
+		stx waveforms+1
+		
+		channel .set 0*5
+		;lda #3
+		;sta channel_vars+channel+divider
+		;lda #0
+		;sta channel_vars+channel+counter
+		;lda #$04
+		;sta channel_vars+channel+volume
+		;lda #$AA
+		;sta channel_vars+channel+lfsr
+		;lda #5
+		;sta channel_vars+channel+lfsr_tap
+		
+		;lda #<Linear_chan2
+		;ldx #>Linear_chan2
+		;sta waveforms+2
+		;stx waveforms+3
+		
+		;channel .set 1*5
+		;lda #48
+		;sta channel_vars+channel+divider
+		;lda #2
+		;sta channel_vars+channel+counter
+		;lda #$02
+		;sta channel_vars+channel+volume
+		;lda #4
+		;sta channel_vars+channel+lfsr
+		;lda #(4 ^$FF)+1	;negates value
+		;sta channel_vars+channel+lfsr_tap
+		
+		lda #<LFSR_chan3
+		ldx #>LFSR_chan3
+		sta waveforms+4
+		stx waveforms+5
+		
+		channel .set 2*5
+		;lda #5
+		;sta channel_vars+channel+divider
+		;lda #2
+		;sta channel_vars+channel+counter
+		;lda #$04
+		;sta channel_vars+channel+volume
+		;lda #$AA
+		;sta channel_vars+channel+lfsr
+		;lda #7
+		;sta channel_vars+channel+lfsr_tap
+		
+		;length of 30
+		lda #1
+		sta channel_vars+channel+divider
+		lda #1
+		sta channel_vars+channel+counter
+		lda #$0;4
+		sta channel_vars+channel+volume
+		lda #1
+		sta channel_vars+channel+lfsr
+		lda #%01000000
+		sta channel_vars+channel+lfsr_tap
+		
+		lda #<Sample_chan4
+		ldx #>Sample_chan4
+		sta waveforms+6
+		stx waveforms+7
+		
+		channel .set 3*5
+		lda #$55
+		sta channel_vars+channel+divider
+		lda #<Kick_sample
+		sta channel_vars+channel+lfsr
+		lda #>Kick_sample
+		sta channel_vars+channel+lfsr_tap
+	:
+	
+	cpy #$17
+	bne:+
+		lda #<Pulse_chan4
+		ldx #>Pulse_chan4
+		sta waveforms+6
+		stx waveforms+7
+		
+		channel .set 3*5
+		lda #15
+		sta channel_vars+channel+divider
+		lda #3
+		sta channel_vars+channel+counter
+		lda #$04
+		sta channel_vars+channel+volume
+		lda #$AA
+		sta channel_vars+channel+lfsr
+		lda #15
+		sta channel_vars+channel+lfsr_tap
+	:
+	
+	
+	
 ;read inputs
 	lda zp_buttons
 	and #%00001010
@@ -973,8 +1192,6 @@ count .set 0
 		eor zp_previous_buttons
 		sta zp_buttons
 	:
-	
-		
 	lda zp_buttons
 	and #BUTTON_RIGHT
 	beq:+
@@ -1029,6 +1246,15 @@ count .set 0
 	lda zp_buttons
 	sta zp_previous_buttons
 	
+	
+	;pull preserved registers from stack
+	pla
+	tay
+	pla
+	tax
+	pla
+	
+	bit $2002
 	
 	jmp end_of_vblank
 
