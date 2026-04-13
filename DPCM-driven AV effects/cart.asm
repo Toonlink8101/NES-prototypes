@@ -129,10 +129,6 @@ loadsprites:
         ;cpx #(4+4*player_count) *4    ;sprite amount * 4 bytes per sprite
         bne loadsprites
 	
-	;OAM DMA
-    lda #>oam
-    sta $4014
-	
 ;write background
 
 ;point to nametable 0
@@ -144,7 +140,7 @@ loadsprites:
 ;fill top tiles
 	;black
 	lda #$90
-	ldx #2;+32;*2
+	ldx #2+32;*2
 	:
 		sta $2007
 		dex
@@ -294,6 +290,14 @@ loadsprites:
 	lda #0
 	sta $2006
 	sta $2006	
+	
+	;reset OAM ADDR
+	ldx #0
+	stx $2003
+	
+	;OAM DMA
+    lda #>oam
+    sta $4014
 
 ;enable interupts
     cli
@@ -303,8 +307,9 @@ loadsprites:
     sta $2000
 	sta zp_PPUctrl_state
 
-    lda #%00011110          ;show sprites and background, show left edge
-    ;lda #%00011000          ;show sprites and background, hide left edge
+    ;lda #%00011110          ;show sprites and background, show left edge
+    ;lda #%00011000          ;show sprites and background, hide all left edge
+    lda #%00011010          ;show sprites and background, hide left edge sprite
     sta $2001
 	sta zp_PPUmask_state
 
@@ -329,16 +334,16 @@ loadsprites:
 	stx waveforms+1
 	
 	channel .set 0*5
-	lda #4
-	sta channel_vars+channel+divider
-	lda #0
-	sta channel_vars+channel+counter
-	lda #$04
-	sta channel_vars+channel+volume
-	lda #$AA
-	sta channel_vars+channel+lfsr
-	lda #4
-	sta channel_vars+channel+lfsr_tap
+	;lda #4
+	;sta channel_vars+channel+divider
+	;lda #0
+	;sta channel_vars+channel+counter
+	;lda #$04
+	;sta channel_vars+channel+volume
+	;lda #$AA
+	;sta channel_vars+channel+lfsr
+	;lda #4
+	;sta channel_vars+channel+lfsr_tap
 	
 	;lda #<Linear_chan2
 	;ldx #>Linear_chan2
@@ -348,16 +353,16 @@ loadsprites:
 	stx waveforms+3
 	
 	channel .set 1*5
-	lda #10
-	sta channel_vars+channel+divider
-	lda #1
-	sta channel_vars+channel+counter
-	lda #$04
-	sta channel_vars+channel+volume
-	lda #$AA
-	sta channel_vars+channel+lfsr
-	lda #10
-	sta channel_vars+channel+lfsr_tap
+	;lda #10
+	;sta channel_vars+channel+divider
+	;lda #1
+	;sta channel_vars+channel+counter
+	;lda #$04
+	;sta channel_vars+channel+volume
+	;lda #$AA
+	;sta channel_vars+channel+lfsr
+	;lda #10
+	;sta channel_vars+channel+lfsr_tap
 	
 	;lda #40
 	;sta channel_vars+channel+divider
@@ -377,17 +382,17 @@ loadsprites:
 	sta waveforms+4
 	stx waveforms+5
 	
-	channel .set 2*5
-	lda #6
-	sta channel_vars+channel+divider
-	lda #2
-	sta channel_vars+channel+counter
-	lda #$04
-	sta channel_vars+channel+volume
-	lda #$AA
-	sta channel_vars+channel+lfsr
-	lda #6
-	sta channel_vars+channel+lfsr_tap
+	;channel .set 2*5
+	;lda #6
+	;sta channel_vars+channel+divider
+	;lda #2
+	;sta channel_vars+channel+counter
+	;lda #$04
+	;sta channel_vars+channel+volume
+	;lda #$AA
+	;sta channel_vars+channel+lfsr
+	;lda #6
+	;sta channel_vars+channel+lfsr_tap
 	
 	;lda #4
 	;sta channel_vars+channel+divider
@@ -407,17 +412,17 @@ loadsprites:
 	sta waveforms+6
 	stx waveforms+7
 	
-	channel .set 3*5
-	lda #15
-	sta channel_vars+channel+divider
-	lda #3
-	sta channel_vars+channel+counter
-	lda #$04
-	sta channel_vars+channel+volume
-	lda #$AA
-	sta channel_vars+channel+lfsr
-	lda #15
-	sta channel_vars+channel+lfsr_tap
+	;channel .set 3*5
+	;lda #15
+	;sta channel_vars+channel+divider
+	;lda #3
+	;sta channel_vars+channel+counter
+	;lda #$04
+	;sta channel_vars+channel+volume
+	;lda #$AA
+	;sta channel_vars+channel+lfsr
+	;lda #15
+	;sta channel_vars+channel+lfsr_tap
 	
 	;lda #$55
 	;sta channel_vars+channel+divider
@@ -554,7 +559,7 @@ timing_over:
 		jmp Vblank
 	:
 	
-	cpx #54
+	cpx #54+2
 	bne:+
 		;reset scroll with coarse scroll
 		
@@ -610,7 +615,7 @@ timing_over:
         sta zp_irq_addr+1
 	:
 	
-	cpx #53
+	cpx #53+2
 	bne:+
 		;change routine to empty
 		lda #<empty_IRQ
@@ -932,6 +937,55 @@ Vblank:
 	
 	lda zp_PPUctrl_state
 	sta $2000
+
+	; clear W
+	bit $2002
+
+count .set 0
+.repeat 3
+	;point PPU to row
+	lda #$20
+	ldx #3+64+64*count
+	sei
+	sta $2006
+	stx $2006
+	cli
+	
+	;AAAAAAAAAAA
+	;ldy #32-6
+	ldy #21
+	:
+		;load immediate twice to simulate loading absolute
+		lda #$9B
+		lda #$9B
+		sta $2007
+		dey
+	bne:-
+	count .set count +1
+.endrepeat
+
+	;point PPU to row
+	;lda #$20
+	;sta $2006
+	;lda #3+32+64
+	;sta $2006
+	
+	;AAAAAAAAAAA
+	;ldy #32-6
+	;:
+	;	;load immediate twice to simulate loading absolute
+	;	lda #$9B
+	;	lda #$9B
+	;	sta $2007
+	;	dey
+	;bne:-
+	
+	
+	
+	;reset PPUADDR
+	lda #0
+	sta $2006
+	sta $2006
 	
 	
 	;update OAM
@@ -944,59 +998,36 @@ Vblank:
 	sta $2004
 .endrepeat
 	
-	; update player sprite
+	; update sprites
 	ldx #$08	;skip buffer
 	:
-		;write 8 bytes (2 sprites)
+		;write "count" bytes (4 bytes = 1 sprites)
+		count .set 4*2
 		thing .set 0
-	.repeat 8
+	.repeat count
 		lda $0200+thing, X
 		sta $2004
 		thing .set thing+1
 	.endrepeat
 		
-		;increment x by 8
+		;increment x by count
 		txa
 		;axs #256- 4
-		axs #256- 8
+		axs #256- count
 		
 		cpx #(player_count*4+2) *4	;sprite amount * 4 bytes per sprite
 						; +2 is for buffer sprites
 	bne:-
 	
 	;reset OAM ADDR
-	lda #0
+	;lda #0
 	;sta $2003
-	
-count .set 0
-.repeat 1
-	;point PPU to row
-	lda #$20
-	sta $2006
-	lda #3+32+64*count
-	sta $2006
-	
-	;AAAAAAAAAAA
-	ldy #32-6
-	:
-		lda #$9B
-		lda #$9B
-		sta $2007
-		dey
-	bne:-
-	count .set count +1
-.endrepeat
-	
-	;reset PPUADDR
-	lda #0
-	sta $2006
-	sta $2006
 	
 	;reset scroll?
 	
 	;inc frame count
 	lda frame_count
-	anc #%00011111		;clears carry
+	anc #%00111111		;clears carry
 	adc #1
 	sta frame_count
 	
@@ -1004,7 +1035,7 @@ count .set 0
 	;update sound
 	tay
 	
-	cpy #$00
+	cpy #$01
 	bne:+
 		lda #<Pulse_chan1
 		ldx #>Pulse_chan1
@@ -1060,6 +1091,23 @@ count .set 0
 		sta channel_vars+channel+lfsr_tap
 		
 		
+		lda #<Sample_chan4
+		ldx #>Sample_chan4
+		sta waveforms+6
+		stx waveforms+7
+		
+		channel .set 3*5
+		lda #$AA
+		sta channel_vars+channel+divider
+		lda #<Kick_sample
+		sta channel_vars+channel+lfsr
+		lda #>Kick_sample
+		sta channel_vars+channel+lfsr_tap
+		
+	:
+	
+	cpy #$07
+	bne:+
 		lda #<Pulse_chan4
 		ldx #>Pulse_chan4
 		sta waveforms+6
@@ -1070,15 +1118,16 @@ count .set 0
 		sta channel_vars+channel+divider
 		lda #3
 		sta channel_vars+channel+counter
-		lda #$0;4
+		lda #$05
 		sta channel_vars+channel+volume
 		lda #$AA
 		sta channel_vars+channel+lfsr
 		lda #15
 		sta channel_vars+channel+lfsr_tap
 	:
+
 	
-	cpy #%10
+	cpy #$11
 	bne:+
 		lda #<Pulse_chan1
 		ldx #>Pulse_chan1
@@ -1114,10 +1163,10 @@ count .set 0
 		;lda #(4 ^$FF)+1	;negates value
 		;sta channel_vars+channel+lfsr_tap
 		
-		lda #<LFSR_chan3
-		ldx #>LFSR_chan3
-		sta waveforms+4
-		stx waveforms+5
+		;lda #<LFSR_chan3
+		;ldx #>LFSR_chan3
+		;sta waveforms+4
+		;stx waveforms+5
 		
 		channel .set 2*5
 		;lda #5
@@ -1132,16 +1181,16 @@ count .set 0
 		;sta channel_vars+channel+lfsr_tap
 		
 		;length of 30
-		lda #1
-		sta channel_vars+channel+divider
-		lda #1
-		sta channel_vars+channel+counter
-		lda #$0;4
-		sta channel_vars+channel+volume
-		lda #1
-		sta channel_vars+channel+lfsr
-		lda #%01000000
-		sta channel_vars+channel+lfsr_tap
+		;lda #1
+		;sta channel_vars+channel+divider
+		;lda #1
+		;sta channel_vars+channel+counter
+		;lda #$0;4
+		;sta channel_vars+channel+volume
+		;lda #1
+		;sta channel_vars+channel+lfsr
+		;lda #%01000000
+		;sta channel_vars+channel+lfsr_tap
 		
 		lda #<Sample_chan4
 		ldx #>Sample_chan4
@@ -1149,7 +1198,7 @@ count .set 0
 		stx waveforms+7
 		
 		channel .set 3*5
-		lda #$55
+		lda #$AA
 		sta channel_vars+channel+divider
 		lda #<Kick_sample
 		sta channel_vars+channel+lfsr
@@ -1169,13 +1218,53 @@ count .set 0
 		sta channel_vars+channel+divider
 		lda #3
 		sta channel_vars+channel+counter
-		lda #$04
+		lda #$05
 		sta channel_vars+channel+volume
 		lda #$AA
 		sta channel_vars+channel+lfsr
 		lda #15
 		sta channel_vars+channel+lfsr_tap
 	:
+	
+	cpy #$21
+	bne:+
+		lda #<Sample_chan4
+		ldx #>Sample_chan4
+		sta waveforms+6
+		stx waveforms+7
+		
+		channel .set 3*5
+		lda #$AA
+		sta channel_vars+channel+divider
+		lda #<Snare_sample
+		sta channel_vars+channel+lfsr
+		lda #>Snare_sample
+		sta channel_vars+channel+lfsr_tap
+	:
+	
+	cpy #$27
+	bne:+
+		lda #<LFSR_chan4
+		ldx #>LFSR_chan4
+		sta waveforms+6
+		stx waveforms+7
+		
+		;length of 30
+		lda #4
+		sta channel_vars+channel+divider
+		lda #1
+		sta channel_vars+channel+counter
+		lda #$0f
+		sta channel_vars+channel+volume
+		lda #1
+		sta channel_vars+channel+lfsr
+		lda #%01000001
+		sta channel_vars+channel+lfsr_tap
+	:
+	
+	cpy #$31
+	
+	cpy #$37
 	
 	
 	
