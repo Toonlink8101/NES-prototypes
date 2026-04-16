@@ -345,10 +345,10 @@ loadsprites:
 	;lda #4
 	;sta channel_vars+channel+lfsr_tap
 	
-	;lda #<Linear_chan2
-	;ldx #>Linear_chan2
-	lda #<Pulse_chan2
-	ldx #>Pulse_chan2
+	lda #<Linear_chan2
+	ldx #>Linear_chan2
+	;lda #<Pulse_chan2
+	;ldx #>Pulse_chan2
 	sta waveforms+2
 	stx waveforms+3
 	
@@ -412,7 +412,7 @@ loadsprites:
 	sta waveforms+6
 	stx waveforms+7
 	
-	;channel .set 3*5
+	channel .set 3*5
 	;lda #15
 	;sta channel_vars+channel+divider
 	;lda #3
@@ -426,10 +426,39 @@ loadsprites:
 	
 	;lda #$55
 	;sta channel_vars+channel+divider
-	;lda #<Snare_sample
+	;lda #<Kick_sample
 	;sta channel_vars+channel+lfsr
-	;lda #>Snare_sample
+	;lda #>Kick_sample
 	;sta channel_vars+channel+lfsr_tap
+	
+	
+	;channel .set 1-1
+	;lda #<Pulse_chan1
+	;ldx #>Pulse_chan1
+	;sta waveforms+channel*2
+	;stx waveforms+channel*2+1
+	
+	;lda #4
+	;sta channel_vars+channel*5+divider
+	;lda #1
+	;sta channel_vars+channel*5+counter
+	;lda #$04
+	;sta channel_vars+channel*5+volume
+	;lda #%00110101
+	;sta channel_vars+channel*5+lfsr
+	;lda #$4
+	;sta channel_vars+channel*5+lfsr_tap
+	
+	;lda #1
+	;sta channel_vars+channel*5+divider
+	;lda #1
+	;sta channel_vars+channel*5+counter
+	;lda #$04
+	;sta channel_vars+channel*5+volume
+	;lda #$1
+	;sta channel_vars+channel*5+lfsr
+	;lda #$E8
+	;sta channel_vars+channel*5+lfsr_tap
 
 ;sync DMC with Vblank
 dmc_sync:
@@ -1035,24 +1064,42 @@ count .set 0
 	;update sound
 	tay
 	
+	
+	; channel 2 PWM
+	channel .set 1*5
+	dec channel_vars+channel+divider
+	bne:+
+		lda #16
+		sta channel_vars+channel+divider
+	:
+	
+	lda #16
+	sec
+	sbc channel_vars+channel+divider
+	sta channel_vars+channel+lfsr_tap
+	
+	
+	; "pattern" data
 	cpy #$01
 	bne:+
 		lda #<Pulse_chan1
 		ldx #>Pulse_chan1
+		;lda #<LFSR_chan1
+		;ldx #>LFSR_chan1
 		sta waveforms+0
 		stx waveforms+1
 		
-		channel .set 0*5
-		lda #4
-		sta channel_vars+channel+divider
-		lda #0
-		sta channel_vars+channel+counter
-		lda #$0;4
-		sta channel_vars+channel+volume
-		lda #$AA
-		sta channel_vars+channel+lfsr
-		lda #4
-		sta channel_vars+channel+lfsr_tap
+		;channel .set 0*5
+		;lda #4
+		;sta channel_vars+channel+divider
+		;lda #0
+		;sta channel_vars+channel+counter
+		;lda #$0;4
+		;sta channel_vars+channel+volume
+		;lda #$AA
+		;sta channel_vars+channel+lfsr
+		;lda #4
+		;sta channel_vars+channel+lfsr_tap
 		
 		
 		lda #<Pulse_chan2
@@ -1065,7 +1112,7 @@ count .set 0
 		sta channel_vars+channel+divider
 		lda #1
 		sta channel_vars+channel+counter
-		lda #$0;4
+		lda #$04
 		sta channel_vars+channel+volume
 		lda #$AA
 		sta channel_vars+channel+lfsr
@@ -1078,17 +1125,17 @@ count .set 0
 		sta waveforms+4
 		stx waveforms+5
 		
-		channel .set 2*5
-		lda #6
-		sta channel_vars+channel+divider
-		lda #2
-		sta channel_vars+channel+counter
-		lda #$0;4
-		sta channel_vars+channel+volume
-		lda #$AA
-		sta channel_vars+channel+lfsr
-		lda #6
-		sta channel_vars+channel+lfsr_tap
+		;channel .set 2*5
+		;lda #6
+		;sta channel_vars+channel+divider
+		;lda #2
+		;sta channel_vars+channel+counter
+		;lda #$0;4
+		;sta channel_vars+channel+volume
+		;lda #$AA
+		;sta channel_vars+channel+lfsr
+		;lda #6
+		;sta channel_vars+channel+lfsr_tap
 		
 		
 		lda #<Sample_chan4
@@ -1114,15 +1161,15 @@ count .set 0
 		stx waveforms+7
 		
 		channel .set 3*5
-		lda #15
+		lda #7
 		sta channel_vars+channel+divider
 		lda #3
 		sta channel_vars+channel+counter
 		lda #$05
 		sta channel_vars+channel+volume
-		lda #$AA
+		lda #$35
 		sta channel_vars+channel+lfsr
-		lda #15
+		lda #8
 		sta channel_vars+channel+lfsr_tap
 	:
 
@@ -1180,18 +1227,6 @@ count .set 0
 		;lda #7
 		;sta channel_vars+channel+lfsr_tap
 		
-		;length of 30
-		;lda #1
-		;sta channel_vars+channel+divider
-		;lda #1
-		;sta channel_vars+channel+counter
-		;lda #$0;4
-		;sta channel_vars+channel+volume
-		;lda #1
-		;sta channel_vars+channel+lfsr
-		;lda #%01000000
-		;sta channel_vars+channel+lfsr_tap
-		
 		lda #<Sample_chan4
 		ldx #>Sample_chan4
 		sta waveforms+6
@@ -1214,15 +1249,15 @@ count .set 0
 		stx waveforms+7
 		
 		channel .set 3*5
-		lda #15
+		lda #7
 		sta channel_vars+channel+divider
 		lda #3
 		sta channel_vars+channel+counter
 		lda #$05
 		sta channel_vars+channel+volume
-		lda #$AA
+		lda #$35
 		sta channel_vars+channel+lfsr
-		lda #15
+		lda #8
 		sta channel_vars+channel+lfsr_tap
 	:
 	
@@ -1244,21 +1279,21 @@ count .set 0
 	
 	cpy #$27
 	bne:+
-		lda #<LFSR_chan4
-		ldx #>LFSR_chan4
+		lda #<Pulse_chan4
+		ldx #>Pulse_chan4
 		sta waveforms+6
 		stx waveforms+7
 		
-		;length of 30
-		lda #4
+		channel .set 3*5
+		lda #7
 		sta channel_vars+channel+divider
-		lda #1
+		lda #3
 		sta channel_vars+channel+counter
-		lda #$0f
+		lda #$05
 		sta channel_vars+channel+volume
-		lda #1
+		lda #$35
 		sta channel_vars+channel+lfsr
-		lda #%01000001
+		lda #8
 		sta channel_vars+channel+lfsr_tap
 	:
 	
