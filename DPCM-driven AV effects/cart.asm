@@ -45,7 +45,7 @@
 	zp_previous_buttons: .res 1
 	
 	
-	player_count = 3
+	player_count = 2
 
 .segment "CODE"
 reset:
@@ -128,6 +128,22 @@ loadsprites:
         cpx #(37 + 4+4*player_count) *4    ;sprite amount * 4 bytes per sprite
         ;cpx #(4+4*player_count) *4    ;sprite amount * 4 bytes per sprite
         bne loadsprites
+	
+;clear PPU
+	lda #$20
+	sta $2006
+	lda #$00
+	sta $2006
+
+	lda #0
+	ldx #$10
+	ldy #$0
+	:
+			sta $2007
+			dey
+		bne:-
+		dex
+	bne:-
 	
 ;write background
 
@@ -323,8 +339,10 @@ loadsprites:
 	sta $4011
 	;sta $4013
 	
-; init visual effect vars
-	;lda #$00
+; init player vars
+	lda #$50
+	sta player_y
+	sta player_x
 	
 
 ; init IRQ audio channels
@@ -970,28 +988,58 @@ Vblank:
 	; clear W
 	bit $2002
 
-count .set 0
-.repeat 3
-	;point PPU to row
+	ldx #0
+
+	;point PPU to row 0
 	lda #$20
-	ldx #3+64+64*count
+	ldy #3+64+32*0
 	sei
 	sta $2006
-	stx $2006
+	sty $2006
 	cli
 	
-	;AAAAAAAAAAA
-	;ldy #32-6
-	ldy #21
+	ldy #23
 	:
-		;load immediate twice to simulate loading absolute
-		lda #$9B
-		lda #$9B
+		;load immediate twice to simulate loading absolute, X
+		lda text_data, X
 		sta $2007
+		inx
 		dey
 	bne:-
-	count .set count +1
-.endrepeat
+	
+	;point PPU to row 1
+	lda #$20
+	ldy #3+64+32*1
+	sei
+	sta $2006
+	sty $2006
+	cli
+	
+	ldy #23
+	:
+		;load immediate twice to simulate loading absolute, X
+		lda text_data, X
+		sta $2007
+		inx
+		dey
+	bne:-
+
+	;point PPU to row 2
+	lda #$20
+	ldy #3+64+32*2
+	sei
+	sta $2006
+	sty $2006
+	cli
+	
+	ldy #17
+	:
+		;load immediate twice to simulate loading absolute, X
+		lda text_data, X
+		sta $2007
+		inx
+		dey
+	bne:-
 
 	;point PPU to row
 	;lda #$20
@@ -1059,83 +1107,81 @@ count .set 0
 	anc #%00111111		;clears carry
 	adc #1
 	sta frame_count
-	
-	
-	;update sound
 	tay
 	
 	
-	; channel 2 PWM
-	channel .set 1*5
+	;update sound
+	
+	
+	; channel 3 PWM
+	channel .set 2*5
 	dec channel_vars+channel+divider
 	bne:+
-		lda #16
+		lda #12
 		sta channel_vars+channel+divider
 	:
 	
-	lda #16
+	lda #12
 	sec
 	sbc channel_vars+channel+divider
 	sta channel_vars+channel+lfsr_tap
 	
 	
-	; "pattern" data
+	; music "pattern" data
 	cpy #$01
 	bne:+
 		lda #<Pulse_chan1
 		ldx #>Pulse_chan1
-		;lda #<LFSR_chan1
-		;ldx #>LFSR_chan1
 		sta waveforms+0
 		stx waveforms+1
 		
-		;channel .set 0*5
-		;lda #4
-		;sta channel_vars+channel+divider
-		;lda #0
-		;sta channel_vars+channel+counter
-		;lda #$0;4
-		;sta channel_vars+channel+volume
-		;lda #$AA
-		;sta channel_vars+channel+lfsr
-		;lda #4
-		;sta channel_vars+channel+lfsr_tap
+		channel .set 0*5
+		lda #4
+		sta channel_vars+channel+divider
+		lda #0
+		sta channel_vars+channel+counter
+		lda #$02
+		sta channel_vars+channel+volume
+		lda #$AA
+		sta channel_vars+channel+lfsr
+		lda #4
+		sta channel_vars+channel+lfsr_tap
 		
 		
-		lda #<Pulse_chan2
-		ldx #>Pulse_chan2
+		lda #<Linear_chan2
+		ldx #>Linear_chan2
 		sta waveforms+2
 		stx waveforms+3
 		
 		channel .set 1*5
-		lda #10
+		lda #60
 		sta channel_vars+channel+divider
-		lda #1
+		lda #2
 		sta channel_vars+channel+counter
-		lda #$04
+		lda #$02
 		sta channel_vars+channel+volume
-		lda #$AA
+		lda #6
 		sta channel_vars+channel+lfsr
-		lda #10
+		lda #(6 ^$FF)+1	;negates value
 		sta channel_vars+channel+lfsr_tap
 		
 		
-		ldx #<Pulse_chan3
+		lda #<Pulse_chan3
 		ldx #>Pulse_chan3
 		sta waveforms+4
 		stx waveforms+5
 		
-		;channel .set 2*5
-		;lda #6
-		;sta channel_vars+channel+divider
-		;lda #2
-		;sta channel_vars+channel+counter
-		;lda #$0;4
-		;sta channel_vars+channel+volume
-		;lda #$AA
-		;sta channel_vars+channel+lfsr
-		;lda #6
-		;sta channel_vars+channel+lfsr_tap
+		channel .set 2*5
+		lda #6
+		sta channel_vars+channel+divider
+		lda #2
+		sta channel_vars+channel+counter
+		lda #$02
+		sta channel_vars+channel+volume
+		lda #$AA
+		sta channel_vars+channel+lfsr
+		lda #6
+		sta channel_vars+channel+lfsr_tap
 		
 		
 		lda #<Sample_chan4
@@ -1176,57 +1222,6 @@ count .set 0
 	
 	cpy #$11
 	bne:+
-		lda #<Pulse_chan1
-		ldx #>Pulse_chan1
-		sta waveforms+0
-		stx waveforms+1
-		
-		channel .set 0*5
-		;lda #3
-		;sta channel_vars+channel+divider
-		;lda #0
-		;sta channel_vars+channel+counter
-		;lda #$04
-		;sta channel_vars+channel+volume
-		;lda #$AA
-		;sta channel_vars+channel+lfsr
-		;lda #5
-		;sta channel_vars+channel+lfsr_tap
-		
-		;lda #<Linear_chan2
-		;ldx #>Linear_chan2
-		;sta waveforms+2
-		;stx waveforms+3
-		
-		;channel .set 1*5
-		;lda #48
-		;sta channel_vars+channel+divider
-		;lda #2
-		;sta channel_vars+channel+counter
-		;lda #$02
-		;sta channel_vars+channel+volume
-		;lda #4
-		;sta channel_vars+channel+lfsr
-		;lda #(4 ^$FF)+1	;negates value
-		;sta channel_vars+channel+lfsr_tap
-		
-		;lda #<LFSR_chan3
-		;ldx #>LFSR_chan3
-		;sta waveforms+4
-		;stx waveforms+5
-		
-		channel .set 2*5
-		;lda #5
-		;sta channel_vars+channel+divider
-		;lda #2
-		;sta channel_vars+channel+counter
-		;lda #$04
-		;sta channel_vars+channel+volume
-		;lda #$AA
-		;sta channel_vars+channel+lfsr
-		;lda #7
-		;sta channel_vars+channel+lfsr_tap
-		
 		lda #<Sample_chan4
 		ldx #>Sample_chan4
 		sta waveforms+6
@@ -1347,10 +1342,10 @@ count .set 0
 .repeat player_count
 	sta $0208+4*0+count*16
 	sta $0208+4*1+count*16
-	adc #8+1
+	adc #8
 	sta $0208+4*2+count*16
 	sta $0208+4*3+count*16
-	adc #8+1
+	adc #7
 	count .set count +1
 .endrepeat
 	
@@ -1385,6 +1380,21 @@ count .set 0
 
 .segment "RODATA"
 
+text_data:
+;"these first three lines of text are updated every frame"
+	.byte $AE, $A2, $9F, $AD, $9F, $90
+	.byte $A0, $A3, $AC, $AD, $AE, $90
+	.byte $AE, $A2, $AC, $9F, $9F, $90
+	.byte $A6, $A3, $A8, $9F, $AD, $90
+	.byte $A9, $A0, $90
+	.byte $AE, $9F, $B2, $AE, $90
+	.byte $9B, $AC, $9F, $90
+	.byte $AF, $AA, $9E, $9B, $AE, $9F, $9E, $90
+	.byte $9F, $B0, $9F, $AC, $B3, $90
+	.byte $A0, $AC, $9B, $A7, $9F, $90
+	;buffer
+	.byte $90, $90, $90, $90, $90, $90, $90, $90
+
 palettedata:
 ;background palettes
 	.byte $0f, $00, $10, $30, 	$00, $0a, $15, $01, 	$00, $29, $28, $27, 	$00, $34, $24, $14
@@ -1405,15 +1415,15 @@ spritedata:
 	.byte $FF, $FF, $FF, $FF
 	.byte $FF, $FF, $FF, $FF
 
-count .set 0
-.repeat player_count
 ;player
-	.byte $50+count*16, $00, $00, $60
-	.byte $50+count*16, $01, $00, $68
-	.byte $58+count*16, $10, $00, $60
-	.byte $58+count*16, $11, $00, $68
-	count .set count + 1
-.endrepeat
+	.byte $FF, $08, $01, $60
+	.byte $FF, $09, $01, $68
+	.byte $FF, $18, $01, $60
+	.byte $FF, $19, $01, $68
+	.byte $FF, $28, $01, $60
+	.byte $FF, $29, $01, $68
+	.byte $FF, $38, $01, $60
+	.byte $FF, $39, $01, $68
 
 ;buffer
 	.byte $FF, $FF, $FF, $FF
@@ -1473,7 +1483,7 @@ count .set 0
 ;highlights
 	.byte $7B, $37, $01, $72
 	.byte $78, $47, $81, $7B
-	.byte $7C, $48, $80, $78
+	.byte $7C, $57, $80, $78
 	
 ;bottom of red
 	.byte $90, $80, $00, $60
