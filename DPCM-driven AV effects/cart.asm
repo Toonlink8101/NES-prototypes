@@ -22,6 +22,7 @@
 	player_x:	.res 1
 	
 	frame_count: .res 1
+	pattern_count: .res 1
 
 .segment "ZEROPAGE"
 ; IRQ trampoline
@@ -170,7 +171,7 @@ loadsprites:
 		dex
 	bne:-
 	
-	ldx #5
+	ldx #4
 	:
 		lda #$90	;black
 		sta $2007
@@ -182,31 +183,7 @@ loadsprites:
 		sta $2007
 		
 		lda #$90	;blank
-		sta $2007
-		
-		lda #$A8	;N
-		sta $2007
-		lda #$AC	;R
-		sta $2007
-		lda #$A9	;O
-		sta $2007
-		lda #$A7	;M
-		sta $2007
-		
-		lda #$90	;blank
-		sta $2007
-		
-		lda #$A9	;O
-		sta $2007
-		lda #$A8	;N
-		sta $2007
-		lda #$A6	;L
-		sta $2007
-		lda #$B3	;Y
-		sta $2007
-		
-		lda #$90	;blank
-		ldy #32-6-10
+		ldy #32-6;-10
 		:
 			sta $2007
 			dey
@@ -216,6 +193,81 @@ loadsprites:
 		sta $2007
 		dex
 	bne:--
+	
+	lda #$90	;black
+	sta $2007
+	sta $2007
+	sta $2007
+	sta $2007
+	
+	lda #$B5	;white
+	sta $2007
+	
+	lda #$90	;blank
+	sta $2007
+	lda #$90	;blank
+	sta $2007
+	
+	lda #$A8	;N
+	sta $2007
+	lda #$AC	;R
+	sta $2007
+	lda #$A9	;O
+	sta $2007
+	lda #$A7	;M
+	sta $2007
+	
+	lda #$90	;blank
+	sta $2007
+	
+	lda #$A9	;O
+	sta $2007
+	lda #$A8	;N
+	sta $2007
+	lda #$A6	;L
+	sta $2007
+	lda #$B3	;Y
+	sta $2007
+	
+	lda #$90	;blank
+	sta $2007
+	lda #$90	;blank
+	sta $2007
+	lda #$90	;blank
+	sta $2007
+	
+	lda #$A8	;N
+	sta $2007
+	lda #$A9	;O
+	sta $2007
+	
+	lda #$90	;blank
+	sta $2007
+	
+	lda #$A9	;O
+	sta $2007	
+	lda #$9B	;A
+	sta $2007	
+	lda #$A7	;M
+	sta $2007
+	
+	lda #$90	;blank
+	sta $2007
+		
+	lda #$9E	;D
+	sta $2007
+	lda #$A7	;M
+	sta $2007
+	lda #$9B	;A
+	sta $2007
+	
+	lda #$90	;blank
+	sta $2007
+	lda #$90	;blank
+	sta $2007
+	
+	lda #$B5	;white
+	sta $2007
 	
 	;black
 	lda #$90
@@ -294,9 +346,156 @@ loadsprites:
 	lda #256-64
 	sta $2006
 	
-;fill black on bottom
+;fill bottom
+	lda #$90	;blank
+	ldy #11
+	:
+		sta $2007
+		dey
+	bne:-
+	
+	;top edge
+	lda #$B8
+	ldx #10
+	:
+		sta $2007
+		dex
+	bne:-
+	
+	lda #$90	;blank
+	ldy #22
+	:
+		sta $2007
+		dey
+	bne:-
+	
+	
+;	Name
+
+	lda #$B5	;white
+	sta $2007	
+
+	lda #$90	;blank
+	sta $2007
+	sta $2007
+	
+	lda #$A8	;N
+	sta $2007
+	lda #$9B	;A
+	sta $2007
+	lda #$A7	;M
+	sta $2007
+	lda #$9F	;E
+	sta $2007	
+		
+	lda #$90	;blank
+	sta $2007
+	sta $2007
+	
+	lda #$B5	;white
+	sta $2007
+	
+	lda #$90	;blank
+	ldy #22
+	:
+		sta $2007
+		dey
+	bne:-
+
+;	HP
+
+	lda #$B5	;white
+	sta $2007	
+
+	lda #$90	;blank
+	sta $2007
+	
+	lda #$A2	;H
+	sta $2007
+	lda #$AA	;P
+	sta $2007
+	
+	lda #$BA	;colon
+	sta $2007
+	lda #$90	;blank
+	sta $2007	
+	
+	
+	lda #$91	;0
+	sta $2007	
+	lda #$91	;0
+	sta $2007	
+		
+	lda #$90	;blank
+	sta $2007
+	
+	lda #$B5	;white
+	sta $2007
+	
+	lda #$90	;blank
+	ldy #22
+	:
+		sta $2007
+		dey
+	bne:-
+
+
+	;MP
+
+	lda #$B5	;white
+	sta $2007	
+
+	lda #$90	;blank
+	sta $2007
+	
+	lda #$A7	;M
+	sta $2007
+	lda #$AA	;P
+	sta $2007
+	
+	lda #$BA	;colon
+	sta $2007
+	lda #$90	;blank
+	sta $2007	
+	
+	
+	lda #$91	;0
+	sta $2007	
+	lda #$91	;0
+	sta $2007	
+		
+	lda #$90	;blank
+	sta $2007
+	
+	lda #$B5	;white
+	sta $2007
+	
+	lda #$90	;blank
+	ldy #22
+	:
+		sta $2007
+		dey
+	bne:-
+	
+	
+	;bottom edge
+	lda #$B9
+	ldx #10
+	:
+		sta $2007
+		dex
+	bne:-
+	
+	lda #$90	;blank
+	ldy #11
+	:
+		sta $2007
+		dey
+	bne:-
+	
+	;black
 	lda #$90
-	ldx #0
+	ldx #2+32*3
 	:
 		sta $2007
 		dex
@@ -804,17 +1003,18 @@ end_of_midscreen:
 	cpx #14
 	bne:+
 		;color emphasis and grayscale
-		lda zp_PPUmask_state
-		ora #%00000000
-		sta zp_PPUmask_state
+		;lda zp_PPUmask_state
+		;ora #%00000000
+		;sta zp_PPUmask_state
 	
 		;change scroll routine
-		lda #<IRQ
+		lda #<empty_IRQ
         sta <zp_irq_addr
-        lda #>IRQ
+        lda #>empty_IRQ
         sta zp_irq_addr+1
 	:
 	
+	;skip 4th frame
 	cpx #0
 	bne:++
 		lda #64
@@ -1015,7 +1215,7 @@ Vblank:
 	sty $2006
 	cli
 	
-	ldy #23
+	ldy #20
 	:
 		;load immediate twice to simulate loading absolute, X
 		lda text_data, X
@@ -1032,7 +1232,7 @@ Vblank:
 	sty $2006
 	cli
 	
-	ldy #17
+	ldy #12
 	:
 		;load immediate twice to simulate loading absolute, X
 		lda text_data, X
@@ -1109,24 +1309,35 @@ Vblank:
 	sta frame_count
 	tay
 	
+	; pattern count
+	lda pattern_count
 	
-	;update sound
-	
-	
-	; channel 3 PWM
-	channel .set 2*5
-	dec channel_vars+channel+divider
+	cpy #1
 	bne:+
-		lda #12
-		sta channel_vars+channel+divider
+		anc #%00000111
+		adc #1
+		sta pattern_count
 	:
 	
-	lda #12
-	sec
-	sbc channel_vars+channel+divider
-	sta channel_vars+channel+lfsr_tap
+	cmp #5
+	bcc:+
+		jmp pattern1
+	:
 	
+	; channel 3 PWM
+	;channel .set 2*5
+	;dec channel_vars+channel+divider
+	;bne:+
+	;	lda #12
+	;	sta channel_vars+channel+divider
+	;:
+	;
+	;lda #12
+	;sec
+	;sbc channel_vars+channel+divider
+	;sta channel_vars+channel+lfsr_tap
 	
+pattern0:
 	; music "pattern" data
 	cpy #$01
 	bne:+
@@ -1136,7 +1347,7 @@ Vblank:
 		stx waveforms+1
 		
 		channel .set 0*5
-		lda #4
+		lda #8
 		sta channel_vars+channel+divider
 		lda #0
 		sta channel_vars+channel+counter
@@ -1144,25 +1355,25 @@ Vblank:
 		sta channel_vars+channel+volume
 		lda #$AA
 		sta channel_vars+channel+lfsr
-		lda #4
+		lda #8
 		sta channel_vars+channel+lfsr_tap
 		
 		
-		lda #<Linear_chan2
-		ldx #>Linear_chan2
+		lda #<Pulse_chan2
+		ldx #>Pulse_chan2
 		sta waveforms+2
 		stx waveforms+3
 		
 		channel .set 1*5
-		lda #60
+		lda #10
 		sta channel_vars+channel+divider
-		lda #2
+		lda #1
 		sta channel_vars+channel+counter
-		lda #$02
+		lda #$03
 		sta channel_vars+channel+volume
-		lda #6
+		lda #$AA
 		sta channel_vars+channel+lfsr
-		lda #(6 ^$FF)+1	;negates value
+		lda #10
 		sta channel_vars+channel+lfsr_tap
 		
 		
@@ -1196,7 +1407,6 @@ Vblank:
 		sta channel_vars+channel+lfsr
 		lda #>Kick_sample
 		sta channel_vars+channel+lfsr_tap
-		
 	:
 	
 	cpy #$07
@@ -1207,15 +1417,185 @@ Vblank:
 		stx waveforms+7
 		
 		channel .set 3*5
-		lda #7
+		lda #15
+		sta channel_vars+channel+divider
+		lda #0
+		sta channel_vars+channel+counter
+		lda #$04
+		sta channel_vars+channel+volume
+		lda #$AA
+		sta channel_vars+channel+lfsr
+		lda #15
+		sta channel_vars+channel+lfsr_tap
+	:
+
+	
+	cpy #$11
+	bne:+
+		lda #<Sample_chan4
+		ldx #>Sample_chan4
+		sta waveforms+6
+		stx waveforms+7
+		
+		channel .set 3*5
+		lda #$AA
+		sta channel_vars+channel+divider
+		lda #<Kick_sample
+		sta channel_vars+channel+lfsr
+		lda #>Kick_sample
+		sta channel_vars+channel+lfsr_tap
+	:
+	
+	cpy #$13
+	bne:+
+		lda #<Pulse_chan4
+		ldx #>Pulse_chan4
+		sta waveforms+6
+		stx waveforms+7
+		
+		channel .set 3*5
+		lda #15
+		sta channel_vars+channel+divider
+		lda #0
+		sta channel_vars+channel+counter
+		lda #$04
+		sta channel_vars+channel+volume
+		lda #$AA
+		sta channel_vars+channel+lfsr
+		lda #15
+		sta channel_vars+channel+lfsr_tap
+	:
+	
+	cpy #$21
+	bne:+
+		lda #<Sample_chan4
+		ldx #>Sample_chan4
+		sta waveforms+6
+		stx waveforms+7
+		
+		channel .set 3*5
+		lda #$AA
+		sta channel_vars+channel+divider
+		lda #<Snare_sample
+		sta channel_vars+channel+lfsr
+		lda #>Snare_sample
+		sta channel_vars+channel+lfsr_tap
+	:
+	
+	cpy #$25
+	bne:+
+		lda #<Pulse_chan4
+		ldx #>Pulse_chan4
+		sta waveforms+6
+		stx waveforms+7
+		
+		channel .set 3*5
+		lda #15
+		sta channel_vars+channel+divider
+		lda #0
+		sta channel_vars+channel+counter
+		lda #$04
+		sta channel_vars+channel+volume
+		lda #$AA
+		sta channel_vars+channel+lfsr
+		lda #15
+		sta channel_vars+channel+lfsr_tap
+	:
+	
+	cpy #$31
+	
+	cpy #$37
+	
+jmp end_pattern
+
+pattern1:	
+	cpy #$01
+	bne:+
+		lda #<Pulse_chan1
+		ldx #>Pulse_chan1
+		sta waveforms+0
+		stx waveforms+1
+		
+		channel .set 0*5
+		lda #4
+		sta channel_vars+channel+divider
+		lda #0
+		sta channel_vars+channel+counter
+		lda #$02
+		sta channel_vars+channel+volume
+		lda #$AA
+		sta channel_vars+channel+lfsr
+		lda #4
+		sta channel_vars+channel+lfsr_tap
+		
+		
+		lda #<Linear_chan2
+		ldx #>Linear_chan2
+		sta waveforms+2
+		stx waveforms+3
+		
+		channel .set 1*5
+		lda #60
+		sta channel_vars+channel+divider
+		lda #2
+		sta channel_vars+channel+counter
+		lda #$02
+		sta channel_vars+channel+volume
+		lda #5
+		sta channel_vars+channel+lfsr
+		lda #(5 ^$FF)+1	;negates value
+		sta channel_vars+channel+lfsr_tap
+		
+		
+		lda #<Linear_chan3
+		ldx #>Linear_chan3
+		sta waveforms+4
+		stx waveforms+5
+		
+		channel .set 2*5
+		lda #20
+		sta channel_vars+channel+divider
+		lda #02
+		sta channel_vars+channel+counter
+		lda #$02
+		sta channel_vars+channel+volume
+		lda #4
+		sta channel_vars+channel+lfsr
+		lda #(4 ^$FF)+1	;negates value
+		sta channel_vars+channel+lfsr_tap
+		
+		
+		lda #<Sample_chan4
+		ldx #>Sample_chan4
+		sta waveforms+6
+		stx waveforms+7
+		
+		channel .set 3*5
+		lda #$AA
+		sta channel_vars+channel+divider
+		lda #<Kick_sample
+		sta channel_vars+channel+lfsr
+		lda #>Kick_sample
+		sta channel_vars+channel+lfsr_tap
+	:
+	
+	cpy #$07
+	bne:+
+		lda #<Pulse_chan4
+		ldx #>Pulse_chan4
+		sta waveforms+6
+		stx waveforms+7
+		
+		channel .set 3*5
+		lda #15
 		sta channel_vars+channel+divider
 		lda #3
 		sta channel_vars+channel+counter
-		lda #$05
+		lda #$0;5
 		sta channel_vars+channel+volume
-		lda #$35
+		lda #$AA
 		sta channel_vars+channel+lfsr
-		lda #8
+		lda #15
 		sta channel_vars+channel+lfsr_tap
 	:
 
@@ -1244,19 +1624,77 @@ Vblank:
 		stx waveforms+7
 		
 		channel .set 3*5
-		lda #7
+		lda #15
 		sta channel_vars+channel+divider
 		lda #3
 		sta channel_vars+channel+counter
-		lda #$05
+		lda #$0;5
 		sta channel_vars+channel+volume
-		lda #$35
+		lda #$AA
 		sta channel_vars+channel+lfsr
-		lda #8
+		lda #15
 		sta channel_vars+channel+lfsr_tap
 	:
 	
 	cpy #$21
+	
+	cpy #$27
+	bne:+
+		lda #<Pulse_chan1
+		ldx #>Pulse_chan1
+		sta waveforms+0
+		stx waveforms+1
+		
+		channel .set 0*5
+		lda #4
+		sta channel_vars+channel+divider
+		lda #0
+		sta channel_vars+channel+counter
+		lda #$0
+		sta channel_vars+channel+volume
+		lda #$AA
+		sta channel_vars+channel+lfsr
+		lda #4
+		sta channel_vars+channel+lfsr_tap
+		
+		
+		lda #<Pulse_chan2
+		ldx #>Pulse_chan2
+		sta waveforms+2
+		stx waveforms+3
+		
+		channel .set 1*5
+		lda #10
+		sta channel_vars+channel+divider
+		lda #1
+		sta channel_vars+channel+counter
+		lda #$0
+		sta channel_vars+channel+volume
+		lda #$AA
+		sta channel_vars+channel+lfsr
+		lda #10
+		sta channel_vars+channel+lfsr_tap
+		
+		
+		lda #<Pulse_chan3
+		ldx #>Pulse_chan3
+		sta waveforms+4
+		stx waveforms+5
+		
+		channel .set 2*5
+		lda #6
+		sta channel_vars+channel+divider
+		lda #2
+		sta channel_vars+channel+counter
+		lda #$0
+		sta channel_vars+channel+volume
+		lda #$AA
+		sta channel_vars+channel+lfsr
+		lda #6
+		sta channel_vars+channel+lfsr_tap
+	:
+	
+	cpy #$31
 	bne:+
 		lda #<Sample_chan4
 		ldx #>Sample_chan4
@@ -1272,7 +1710,7 @@ Vblank:
 		sta channel_vars+channel+lfsr_tap
 	:
 	
-	cpy #$27
+	cpy #$37
 	bne:+
 		lda #<Pulse_chan4
 		ldx #>Pulse_chan4
@@ -1280,22 +1718,21 @@ Vblank:
 		stx waveforms+7
 		
 		channel .set 3*5
-		lda #7
+		lda #15
 		sta channel_vars+channel+divider
-		lda #3
+		lda #0
 		sta channel_vars+channel+counter
-		lda #$05
+		lda #$0;5
 		sta channel_vars+channel+volume
-		lda #$35
+		lda #$AA
 		sta channel_vars+channel+lfsr
-		lda #8
+		lda #15
 		sta channel_vars+channel+lfsr_tap
 	:
 	
-	cpy #$31
 	
-	cpy #$37
 	
+end_pattern:
 	
 	
 ;read inputs
