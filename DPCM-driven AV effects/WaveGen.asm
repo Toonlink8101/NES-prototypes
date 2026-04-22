@@ -213,6 +213,38 @@
 	;tay
 .endmacro
 
+;Generate Linear Wave, better volume
+	;trashes X, leaves output in A
+	; Generates triangles, saws, and anything inbetween
+	; counter holds the output value
+	; volume is added to counter each iteration
+	; divider is the "ceiling" for counter. Once counter passes this value, counter is set to lfsr_tap
+	; lfsr_tap holds the decreasing value (-). It's loaded into volume when counter passes divider
+	; lfsr hold the increasing value (+). It's loaded into volume when counter underflows
+	; The period of this generator is roughly as follows: Period = ceil(divider / lfsr) + ciel(divider / lfsr_tap)
+	; Setting lfsr == divider and lfsr_tap == -1 results in a sawtooth
+.macro Linear2 channel
+	; 28 - 33,35 cycles?
+	; 29 bytes
+	lda counter+channel*5+channel_vars
+	adc volume+channel*5+channel_vars
+	bpl:+
+		ldx lfsr+channel*5+channel_vars
+		stx volume+channel*5+channel_vars
+		lda #8
+	:
+	sta counter+channel*5+channel_vars
+	cmp divider+channel*5+channel_vars
+	bcc:+
+		ldx lfsr_tap+channel*5+channel_vars
+		stx volume+channel*5+channel_vars
+	:
+	alr #%01111100
+	lsr
+	;adc identity_table, y
+	;tay
+.endmacro
+
 
 ;Generate LFSR Wave
 	; trashes A, adds output to Y
@@ -305,8 +337,8 @@
 		lsr
 		alr #$FE		;lsr, then clc
 @output:
-	adc identity_table, y
-	tay
+	;adc identity_table, y
+	;tay
 .endmacro
 
 ;Generate Sample Optimized
@@ -557,7 +589,7 @@ Linear_chan1:
 		ldx lfsr_tap+channel*5+channel_vars
 		stx volume+channel*5+channel_vars
 	:
-	alr #%00111100
+	alr #%01111100
 	lsr
 	;adc identity_table, y
 	tay
@@ -597,28 +629,28 @@ LFSR_chan1:
 
 
 Sample_chan1:
-; Generate Page Sample
-	;samples are raw 4-bit, the sound engine must also manually end playback either with a new waveform or a blank sample
-	; divider holds state. counter holds low byte of sample address, while volume holds the high byte
-	; sample loops through a full page of data (512 samples)
-	; 31? - 31 cycles (assuming zeropage)
-	; 22? bytes
-	ldx #0
-	asl divider+channel*5+channel_vars
-	bcs @read_high
-;read_low:
-		lda (lfsr+channel*5+channel_vars, X)
-		and #%00001111
-		inc lfsr+channel*5+channel_vars
-		jmp @output
-@read_high:
-		inc divider+channel*5+channel_vars
-		lda (lfsr+channel*5+channel_vars, X)
-		lsr
-		lsr
-		lsr
-		alr #$FE		;lsr, then clc
-@output:
+	; Generate Page Sample
+		;samples are raw 4-bit, the sound engine must also manually end playback either with a new waveform or a blank sample
+		; divider holds state. counter holds low byte of sample address, while volume holds the high byte
+		; sample loops through a full page of data (512 samples)
+		; 31? - 31 cycles (assuming zeropage)
+		; 22? bytes
+		ldx #0
+		asl divider+channel*5+channel_vars
+		bcs @read_high
+	;read_low:
+			lda (lfsr+channel*5+channel_vars, X)
+			and #%00001111
+			inc lfsr+channel*5+channel_vars
+			jmp @output
+	@read_high:
+			inc divider+channel*5+channel_vars
+			lda (lfsr+channel*5+channel_vars, X)
+			lsr
+			lsr
+			lsr
+			alr #$FE		;lsr, then clc
+	@output:
 	;adc identity_table, y
 	tay
 	jmp (waveforms+chan2)
@@ -678,7 +710,7 @@ Linear_chan2:
 		ldx lfsr_tap+channel*5+channel_vars
 		stx volume+channel*5+channel_vars
 	:
-	alr #%00111100
+	alr #%01111100
 	lsr
 	adc identity_table, y
 	tay
@@ -796,7 +828,7 @@ Linear_chan3:
 		ldx lfsr_tap+channel*5+channel_vars
 		stx volume+channel*5+channel_vars
 	:
-	alr #%00111100
+	alr #%01111100
 	lsr
 	adc identity_table, y
 	tay
@@ -914,7 +946,7 @@ Linear_chan4:
 		ldx lfsr_tap+channel*5+channel_vars
 		stx volume+channel*5+channel_vars
 	:
-	alr #%00111100
+	alr #%01111100
 	lsr
 	adc identity_table, y
 	;tay
