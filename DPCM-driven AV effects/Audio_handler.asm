@@ -215,21 +215,21 @@ jmp end_pattern
 pattern1:	
 	cpy #$01
 	bne:+
-		lda #<Pulse_chan1
-		ldx #>Pulse_chan1
+		lda #<Linear_chan1
+		ldx #>Linear_chan1
 		sta waveforms+0
 		stx waveforms+1
 		
 		channel .set 0*5
-		lda #4
+		lda #28
 		sta channel_vars+channel+divider
-		lda #0
+		lda #2
 		sta channel_vars+channel+counter
 		lda #$02
 		sta channel_vars+channel+volume
-		lda #$AA
+		lda #28
 		sta channel_vars+channel+lfsr
-		lda #4
+		lda #(2 ^$FF)+1	;negates value
 		sta channel_vars+channel+lfsr_tap
 		
 		
@@ -239,7 +239,7 @@ pattern1:
 		stx waveforms+3
 		
 		channel .set 1*5
-		lda #60
+		lda #30
 		sta channel_vars+channel+divider
 		lda #2
 		sta channel_vars+channel+counter
@@ -354,48 +354,32 @@ pattern1:
 		sta channel_vars+channel+divider
 		lda #0
 		sta channel_vars+channel+counter
-		lda #$0
+		lda #$0;2
 		sta channel_vars+channel+volume
-		lda #$AA
+		lda #$FF
 		sta channel_vars+channel+lfsr
 		lda #4
 		sta channel_vars+channel+lfsr_tap
 		
 		
-		lda #<Pulse_chan2
-		ldx #>Pulse_chan2
-		sta waveforms+2
-		stx waveforms+3
+		;lda #<Linear_chan2
+		;ldx #>Linear_chan2
+		;sta waveforms+2
+		;stx waveforms+3
 		
 		channel .set 1*5
-		lda #10
-		sta channel_vars+channel+divider
-		lda #1
-		sta channel_vars+channel+counter
-		lda #$0
+		lda #$00
 		sta channel_vars+channel+volume
-		lda #$AA
-		sta channel_vars+channel+lfsr
-		lda #10
-		sta channel_vars+channel+lfsr_tap
 		
 		
-		lda #<Pulse_chan3
-		ldx #>Pulse_chan3
-		sta waveforms+4
-		stx waveforms+5
+		;lda #<Linear_chan3
+		;ldx #>Linear_chan3
+		;sta waveforms+4
+		;stx waveforms+5
 		
 		channel .set 2*5
-		lda #6
-		sta channel_vars+channel+divider
-		lda #2
-		sta channel_vars+channel+counter
-		lda #$0
+		lda #$00
 		sta channel_vars+channel+volume
-		lda #$AA
-		sta channel_vars+channel+lfsr
-		lda #6
-		sta channel_vars+channel+lfsr_tap
 	:
 	
 	cpy #$31

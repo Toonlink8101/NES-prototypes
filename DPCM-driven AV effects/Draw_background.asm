@@ -34,7 +34,7 @@ Draw_background:
 	lda #$00
 	sta $2006
 
-	lda #0		;$E8 instead?
+	lda #0
 	ldx #$10
 	ldy #$0
 	:
@@ -53,49 +53,18 @@ Draw_background:
 	lda #$00
 	sta $2006
 	
+	
 ;fill top tiles
-	;black
-	Draw_tile $20, 2+32;*2
 	
-	;top edge
-	Draw_tile $84, 32-4
-
-	
-	ldy #3
-	@loop_start:
-		Draw_tile $20, 4	;black
-		
-		Draw_tile $82		;white
-		
-		Draw_tile $20, 26	;black
-		
-		Draw_tile $82		;white
-		
-		dey
-	bne @loop_start
-	
-	Draw_tile $20, 4	;black
-	Draw_tile $82		;white
-	
-	Draw_text "         $4011 sound only "
-
-	Draw_tile $82		;white
-	
-	Draw_tile $20, 4	;black
-	Draw_tile $82		;white
-	
-	Draw_text "  NROM only   No OAM DMA  "
-
-	Draw_tile $82		;white
+	ldy #0
+	:
+		lda Top_textbox_tiles, Y
+		sta $2007
+		iny
+	bne:-
 	
 	
-	Draw_tile $20, 4	;black
-	
-	;bottom edge
-	Draw_tile $83, 28
-	
-	;black
-	Draw_tile $20, 2+32*2
+	Draw_tile $20, 32*2	;black
 	
 	
 ;point to attibute table 0
@@ -152,73 +121,22 @@ Draw_background:
 	lda #256-64
 	sta $2006
 	
+	
 ;fill bottom
-	Draw_tile $20, 11	;black
-			
-	;top edge
-	Draw_tile $84, 10
+	ldx #0
+	:
+		lda Bottom_textbox_tiles, X
+		sta $2007
+		inx
+		cpx #32*5
+	bne:-
 	
-	Draw_tile $20, 22	;black
-	
-	
-;	Name
-
-	Draw_tile $82	;white
-	Draw_tile $20, 2	;black
-	
-	Draw_text "Name"
-		
-	Draw_tile $20, 2	;black
-	
-	Draw_tile $82	;white
+	;if loading exactly 256 tiles and data is aligned, "lda abs,Y" followed by "iny" could be used to save cycles/byte, negating the need for X
+	;if loading less than 256 tiles, X would still be needed to count, maybe with "txa" & "axs", but "iny" could still be used
+	;However, if the tile count is constant, an "cpy #" could also work, making Y count up to the desired tile count
 	
 	
-	Draw_tile $20, 22	;black
-	
-;	HP
-
-	lda #$82	;white
-	sta $2007	
-
-	lda #$20	;blank
-	sta $2007
-	
-	Draw_text "HP: 00"
-		
-	lda #$20	;blank
-	sta $2007
-	
-	lda #$82	;white
-	sta $2007
-	
-	Draw_tile $20, 22	;black
-
-
-	;MP
-
-	lda #$82	;white
-	sta $2007	
-
-	lda #$20	;blank
-	sta $2007
-	
-	Draw_text "MP: 00"
-		
-	lda #$20	;blank
-	sta $2007
-	
-	lda #$82	;white
-	sta $2007
-	
-	Draw_tile $20, 22	;black
-	
-	;bottom edge
-	Draw_tile $83, 10	;black
-	
-	Draw_tile $20, 11	;black
-	
-	
-	Draw_tile $20, 2+32*3	;black
+	Draw_tile $20, 32*3	;black
 
 	;reset PPUADDR
 	lda #0

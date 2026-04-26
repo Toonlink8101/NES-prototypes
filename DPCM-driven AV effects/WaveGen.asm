@@ -1034,6 +1034,9 @@ Output_to_DPCM:
 	
 	
 .segment "RODATA"
+
+.align 256
+
 Kick_sample:
 	.byte $88,$7B,$51,$8C,$FF,$C5,$00,$00,$03,$8C,$FF,$FF,$FF,$EA,$62,$00
 	.byte $00,$01,$37,$AE,$FF,$FF,$FF,$FD,$B9,$74,$21,$00,$00,$00,$02,$69
