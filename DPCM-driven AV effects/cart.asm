@@ -23,6 +23,7 @@
 	
 	frame_count: .res 1
 	pattern_count: .res 1
+	detune_active: .res 1
 
 .segment "ZEROPAGE"
 ; IRQ trampoline

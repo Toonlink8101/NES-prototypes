@@ -38,13 +38,19 @@ Audio_handler:
 	
 	;channel 1 detune
 	channel .set 0*5
-	inc channel_vars+channel+counter
-	;dec also works, I think
+	bit detune_active
+	bpl:+
+		inc channel_vars+channel+counter
+		;dec also works, I think
+	:
 	
 pattern0:
 	; music "pattern" data
 	cpy #$01
 	bne:+
+		lda #$FF
+		sta detune_active
+	
 		lda #<Pulse_chan1
 		ldx #>Pulse_chan1
 		sta waveforms+0
@@ -215,6 +221,9 @@ jmp end_pattern
 pattern1:	
 	cpy #$01
 	bne:+
+		lda #$0
+		sta detune_active
+		
 		lda #<Linear_chan1
 		ldx #>Linear_chan1
 		sta waveforms+0
@@ -225,11 +234,11 @@ pattern1:
 		sta channel_vars+channel+divider
 		lda #2
 		sta channel_vars+channel+counter
-		lda #$02
+		lda #$FF
 		sta channel_vars+channel+volume
-		lda #28
+		lda #1
 		sta channel_vars+channel+lfsr
-		lda #(2 ^$FF)+1	;negates value
+		lda #(3 ^$FF)+1	;negates value
 		sta channel_vars+channel+lfsr_tap
 		
 		
