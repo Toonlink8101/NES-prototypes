@@ -64,13 +64,13 @@ Vblank:
 		sty $2006
 		cli
 		
+		;ldx #30
 		ldy #30
-		ldx #0
 		:
-			lda text_data, X
+			lda zp_tile_queue, Y
 			sta $2007
-			inx
 			dey
+			;dex
 		bne:-
 skip_PPU_update:
 	
@@ -122,6 +122,9 @@ skip_PPU_update:
 	
 ;scroll handling
 	inc zp_camera_x
+	bne:+
+		inc zp_camera_x+1
+	:
 	
 	;check if PPU draw needed
 	ldx #0
@@ -134,7 +137,7 @@ skip_PPU_update:
 	
 	;get PPU draw address
 	cpx #$FF
-	bne:+
+	bne:++
 		lda zp_camera_x
 		lsr
 		lsr
@@ -143,6 +146,41 @@ skip_PPU_update:
 		;high byte is either $20 or $28
 		lda #$20
 		sta zp_column_high
+		
+		;get offset for reading map
+		lda zp_camera_x
+		sta zp_map_offset
+		lda zp_camera_x+1
+		sta zp_map_offset+1
+		
+		;16bit asl twice
+		asl zp_map_offset
+		rol zp_map_offset+1
+		asl zp_map_offset
+		lda zp_map_offset+1
+		rol
+		and #%00000011			;limit to 4 pages
+		sta zp_map_offset+1
+		
+		clc
+		lda #<Map
+		adc zp_map_offset
+		sta zp_map_addr
+		lda #>Map
+		adc zp_map_offset+1
+		sta zp_map_addr+1
+		
+		;ldy zp_map_offset
+		;tay
+		ldy #0
+		ldx #30
+		:
+			lda (zp_map_addr), Y
+			sta zp_tile_queue, X
+			iny
+			dex
+		bne:-
+		
 	:
 	
 ;read inputs

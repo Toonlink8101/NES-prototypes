@@ -47,10 +47,14 @@
 	zp_previous_buttons: .res 1
 	
 ;camera and scrolling
-	zp_camera_x: .res 1
+	zp_camera_x: .res 2
 	zp_PPU_update: .res 1
 	zp_column_high: .res 1
 	zp_column_low: .res 1
+	zp_map_offset: .res 2
+	zp_map_addr: .res 2
+	
+	zp_tile_queue: .res 30
 	
 	
 ;constants

@@ -57,3 +57,11 @@ lda old_attr
 and %00110011	; zero out right half
 eor new_attr	; should already have left half zeroed
 sta attr
+
+
+
+
+;16 bit lsr
+lsr var_high
+ror var_low
+
