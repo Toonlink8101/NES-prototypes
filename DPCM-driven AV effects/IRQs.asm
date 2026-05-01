@@ -78,6 +78,11 @@ timing_over:
 	;cmp #$88
 	cpx #63
 	bne:+
+		lda #<empty_IRQ
+        sta <zp_irq_addr
+        lda #>empty_IRQ
+        sta zp_irq_addr+1
+		
 		jmp Vblank
 	:
 	
@@ -287,6 +292,42 @@ end_of_midscreen:
 		lda #<empty_IRQ
         sta <zp_irq_addr
         lda #>empty_IRQ
+        sta zp_irq_addr+1
+	:
+	
+	cpx #5
+	bne:+
+		;disable PPU
+		lda zp_PPUmask_state
+		and #%11100111
+		sta zp_PPUmask_state
+		
+		lda #<IRQ
+        sta <zp_irq_addr
+        lda #>IRQ
+        sta zp_irq_addr+1
+	:
+	
+	cpx #4
+	bne:+
+		lda #<empty_IRQ
+        sta <zp_irq_addr
+        lda #>empty_IRQ
+        sta zp_irq_addr+1
+	
+		;do vblank stuff?
+	:
+	
+	cpx #1
+	bne:+
+		;enable PPU
+		lda zp_PPUmask_state
+		ora #%00010000
+		sta zp_PPUmask_state
+		
+		lda #<IRQ
+        sta <zp_irq_addr
+        lda #>IRQ
         sta zp_irq_addr+1
 	:
 	

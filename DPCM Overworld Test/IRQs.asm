@@ -157,6 +157,41 @@ timing_over:
         sta zp_irq_addr+1
 	:
 	
+	cpx #5
+	bne:+
+		;disable PPU
+		lda zp_PPUmask_state
+		and #%11100111
+		sta zp_PPUmask_state
+		
+		lda #<IRQ
+        sta <zp_irq_addr
+        lda #>IRQ
+        sta zp_irq_addr+1
+	:
+	
+	cpx #1
+	bne:+
+		;enable PPU
+		lda zp_PPUmask_state
+		ora #%00010000
+		sta zp_PPUmask_state
+		
+		lda #<IRQ
+        sta <zp_irq_addr
+        lda #>IRQ
+        sta zp_irq_addr+1
+	:
+	
+	cpx #0
+	bne:+
+		lda #<empty_IRQ
+        sta <zp_irq_addr
+        lda #>empty_IRQ
+        sta zp_irq_addr+1
+	:
+	
+	
 	;skip 4th frame
 	cpx #0
 	bne:++
