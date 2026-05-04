@@ -56,7 +56,24 @@ Vblank:
 
 	lda zp_PPU_update
 	beq skip_PPU_update
-		;point PPU to new column
+		;attribute update
+		ldx zp_attr_addr_low
+		ldy #8
+		:
+			lda zp_attr_addr_high
+			sta $2006
+			stx $2006
+		
+			lda zp_tile_queue+30-1, Y
+			sta $2007
+			
+			txa
+			axs	#256-8	;adds 8 to X
+		
+			dey
+		bne:-
+	
+		;point PPU to new column of tiles
 		lda zp_column_high
 		ldy zp_column_low
 		sei
@@ -67,11 +84,13 @@ Vblank:
 		;ldx #30
 		ldy #30
 		:
-			lda zp_tile_queue, Y
+			lda zp_tile_queue-1, Y
 			sta $2007
 			dey
 			;dex
 		bne:-
+		
+		
 skip_PPU_update:
 	
 	;reset PPUADDR
@@ -135,9 +154,11 @@ skip_PPU_update:
 	:
 	stx zp_PPU_update
 	
-	;get PPU draw address
 	cpx #$FF
-	bne:++
+	beq:+
+		jmp skip_draw_get
+	:
+	;get PPU draw address
 		lda zp_camera_x
 		lsr
 		lsr
@@ -159,7 +180,7 @@ skip_PPU_update:
 		asl zp_map_offset
 		lda zp_map_offset+1
 		rol
-		and #%00000011			;limit to 4 pages
+		and #%00000111			;limit to 8 pages
 		sta zp_map_offset+1
 		
 		clc
@@ -176,12 +197,64 @@ skip_PPU_update:
 		ldx #30
 		:
 			lda (zp_map_addr), Y
-			sta zp_tile_queue, X
+			sta zp_tile_queue-1, X
 			iny
 			dex
 		bne:-
 		
-	:
+		;check for attribute update
+		lda zp_camera_x
+		and #%00011111
+		beq attr_update_easy
+		;and #%00001111
+		;beq attr_update_hard
+		jmp skip_draw_get
+		
+attr_update_easy:
+		;get high byte from nametable
+		lda zp_column_high
+		clc
+		adc #3
+		sta zp_attr_addr_high
+		
+		lda zp_camera_x
+		lsr
+		lsr
+		lsr
+		lsr
+		lsr
+		;rol
+		;rol
+		;rol
+		;rol
+		;anc #%00000111	;clc
+		clc
+		adc #$C0
+		sta zp_attr_addr_low	;= attribute base + (scroll / 32)
+		
+		ldx #8
+		:
+			ldy #0
+			lda (zp_map_addr), Y
+			sta zp_tile_queue+30-1, X
+			dex
+			ldy #1
+			lda (zp_map_addr), Y
+			sta zp_tile_queue+30-1, X
+			
+			;16bit inc zp_map_addr by 32
+			lda zp_map_addr
+			clc
+			adc #32
+			sta zp_map_addr
+			bcc:+
+				inc zp_map_addr+1
+			:
+			dex
+		bne:--
+		
+		
+skip_draw_get:
 	
 ;read inputs
 	lda zp_buttons

@@ -51,10 +51,12 @@
 	zp_PPU_update: .res 1
 	zp_column_high: .res 1
 	zp_column_low: .res 1
+	zp_attr_addr_high: .res 1
+	zp_attr_addr_low: .res 1
 	zp_map_offset: .res 2
 	zp_map_addr: .res 2
 	
-	zp_tile_queue: .res 30
+	zp_tile_queue: .res 30+8
 	
 	
 ;constants

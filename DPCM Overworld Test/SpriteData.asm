@@ -30,8 +30,8 @@ spritedata:
 
 ;TODO add column of black on right of screen drawn with OAM DMA
 ;right boarder
-	count .set 0
-.repeat 15
+	count .set 12
+.repeat 14
 	.byte count, $00, $02, $F8
 	count .set count+16
 .endrepeat

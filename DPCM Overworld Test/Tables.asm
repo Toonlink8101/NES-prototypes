@@ -126,6 +126,8 @@ Bottom_textbox_tiles:
 	;.byte "                                "
 	
 
+; Tile map
+; 30 bytes of tile data followed by 2 bytes(?) of attribute data
 Map:
 	.byte "00010000200000003000000040000000"
 	.byte "11111111111111111111111111111111"
@@ -162,3 +164,39 @@ Map:
 	.byte "dddddddddddddddddddddddddddddddd"
 	.byte "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
 	.byte "ffffffffffffffffffffffffffffffff"
+	
+	.byte "********************************"
+	.byte "(((((((((((((((((((((((((((((((("
+	.byte "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	.byte "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	.byte "cccccccccccccccccccccccccccccccc"
+	.byte "dddddddddddddddddddddddddddddddd"
+	.byte "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+	.byte "ffffffffffffffffffffffffffffffff"
+	
+	.byte "))))))))))))))))))))))))))))))))"
+	.byte "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+	.byte "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@"
+	.byte "################################"
+	.byte "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$"
+	.byte "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%"
+	.byte "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^"
+	.byte "&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&"
+	
+	.byte "88888888888888888888888888888888"
+	.byte "99999999999999999999999999999999"
+	.byte "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+	.byte "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+	.byte "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"
+	.byte "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD"
+	.byte "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE"
+	.byte "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+	
+	.byte "00010000200000003000000040000000"
+	.byte "11111111111111111111111111111111"
+	.byte "22222222222222222222222222222222"
+	.byte "33333333333333333333333333333333"
+	.byte "44444444444444444444444444444444"
+	.byte "55555555555555555555555555555555"
+	.byte "66666666666666666666666666666666"
+	.byte "77777777777777777777777777777777"
