@@ -44,6 +44,57 @@ Draw_background:
 		dex
 	bne:-
 	
+; draw map
+	lda #$20
+	sta $2006
+	lda #$00
+	sta $2006
+
+	lda zp_PPUctrl_state
+	ora #%00000100		;enable +32 tile mode
+	sta zp_PPUctrl_state
+	sta $2000
+	
+	lda #<Map
+	;sec
+	;sbc #32*7
+	sta zp_map_addr
+	lda #>Map
+	;clc
+	;adc #4	;start on the 4th page
+	sta zp_map_addr+1
+	
+	bit $2002
+	
+	ldx #0
+draw_map_loop:
+		lda #$20
+		sta $2006
+		stx $2006
+		ldy #0
+		:
+			lda (zp_map_addr), Y
+			sta $2007
+			iny
+			cpy #30
+		bne:-
+		
+		;16bit dec to next line of data
+		lda zp_map_addr
+		clc
+		adc #32
+		sta zp_map_addr
+		bcc:+
+			;dec zp_map_addr+1
+			inc zp_map_addr+1
+		:
+		
+		inx
+		cpx #32
+	bne draw_map_loop
+	
+	
+	rts
 	jmp fill_attributes
 	
 	
@@ -93,6 +144,14 @@ Draw_background:
 	Draw_tile $20, 32*3	;black
 
 fill_attributes:
+
+	;bit $2002
+	
+	lda zp_PPUctrl_state
+	and #%11111011		;disable +32 tile mode
+	sta zp_PPUctrl_state
+	sta $2000
+	
 	;point to attibute table 0
 	lda #$23
 	sta $2006

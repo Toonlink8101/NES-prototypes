@@ -126,77 +126,80 @@ Bottom_textbox_tiles:
 	;.byte "                                "
 	
 
+
+
 ; Tile map
 ; 30 bytes of tile data followed by 2 bytes(?) of attribute data
+
 Map:
-	.byte "00010000200000003000000040000000"
-	.byte "11111111111111111111111111111111"
-	.byte "22222222222222222222222222222222"
-	.byte "33333333333333333333333333333333"
-	.byte "44444444444444444444444444444444"
-	.byte "55555555555555555555555555555555"
-	.byte "66666666666666666666666666666666"
-	.byte "77777777777777777777777777777777"
+	.byte "000100002000000030000000400000",0,0
+	.byte "111111111111111111111111111111",0,0
+	.byte "222222222222222222222222222222",0,0
+	.byte "333333333333333333333333333333",0,0
+	.byte "444444444444444444444444444444",0,0
+	.byte "555555555555555555555555555555",0,0
+	.byte "666666666666666666666666666666",0,0
+	.byte "777777777777777777777777777777",0,0
 	
-	.byte "88888888888888888888888888888888"
-	.byte "99999999999999999999999999999999"
-	.byte "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-	.byte "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
-	.byte "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"
-	.byte "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD"
-	.byte "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE"
-	.byte "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+	.byte "888888888888888888888888888888",$55,$55
+	.byte "999999999999999999999999999999",$55,$55
+	.byte "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",$55,$55
+	.byte "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",$55,$55
+	.byte "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",$55,$55
+	.byte "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",$55,$55
+	.byte "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEE",$55,$55
+	.byte "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",$55,$55
 	
-	.byte "))))))))))))))))))))))))))))))))"
-	.byte "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-	.byte "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@"
-	.byte "################################"
-	.byte "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$"
-	.byte "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%"
-	.byte "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^"
-	.byte "&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&"
+	.byte "))))))))))))))))))))))))))))))",$AA,$AA
+	.byte "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",$AA,$AA
+	.byte "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",$AA,$AA
+	.byte "##############################",$AA,$AA
+	.byte "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$",$AA,$AA
+	.byte "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%",$AA,$AA
+	.byte "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",$AA,$AA
+	.byte "&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&",$AA,$AA
 	
-	.byte "********************************"
-	.byte "(((((((((((((((((((((((((((((((("
-	.byte "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	.byte "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-	.byte "cccccccccccccccccccccccccccccccc"
-	.byte "dddddddddddddddddddddddddddddddd"
-	.byte "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-	.byte "ffffffffffffffffffffffffffffffff"
+	.byte "******************************",$FF,$FF
+	.byte "((((((((((((((((((((((((((((((",$FF,$FF
+	.byte "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",$FF,$FF
+	.byte "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",$FF,$FF
+	.byte "cccccccccccccccccccccccccccccc",$FF,$FF
+	.byte "dddddddddddddddddddddddddddddd",$FF,$FF
+	.byte "eeeeeeeeeeeeeeeeeeeeeeeeeeeeee",$FF,$FF
+	.byte "ffffffffffffffffffffffffffffff",$FF,$FF
 	
-	.byte "********************************"
-	.byte "(((((((((((((((((((((((((((((((("
-	.byte "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	.byte "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-	.byte "cccccccccccccccccccccccccccccccc"
-	.byte "dddddddddddddddddddddddddddddddd"
-	.byte "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-	.byte "ffffffffffffffffffffffffffffffff"
+	.byte "******************************",$FF,$FF
+	.byte "((((((((((((((((((((((((((((((",$FF,$FF
+	.byte "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",$FF,$FF
+	.byte "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",$FF,$FF
+	.byte "cccccccccccccccccccccccccccccc",$FF,$FF
+	.byte "dddddddddddddddddddddddddddddd",$FF,$FF
+	.byte "eeeeeeeeeeeeeeeeeeeeeeeeeeeeee",$FF,$FF
+	.byte "ffffffffffffffffffffffffffffff",$FF,$FF
 	
-	.byte "))))))))))))))))))))))))))))))))"
-	.byte "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-	.byte "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@"
-	.byte "################################"
-	.byte "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$"
-	.byte "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%"
-	.byte "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^"
-	.byte "&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&"
+	.byte "))))))))))))))))))))))))))))))",$AA,$AA
+	.byte "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",$AA,$AA
+	.byte "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",$AA,$AA
+	.byte "##############################",$AA,$AA
+	.byte "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$",$AA,$AA
+	.byte "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%",$AA,$AA
+	.byte "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",$AA,$AA
+	.byte "&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&",$AA,$AA
 	
-	.byte "88888888888888888888888888888888"
-	.byte "99999999999999999999999999999999"
-	.byte "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-	.byte "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
-	.byte "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"
-	.byte "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD"
-	.byte "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE"
-	.byte "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+	.byte "888888888888888888888888888888",$55,$55
+	.byte "999999999999999999999999999999",$55,$55
+	.byte "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",$55,$55
+	.byte "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",$55,$55
+	.byte "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",$55,$55
+	.byte "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",$55,$55
+	.byte "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEE",$55,$55
+	.byte "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",$55,$55
 	
-	.byte "00010000200000003000000040000000"
-	.byte "11111111111111111111111111111111"
-	.byte "22222222222222222222222222222222"
-	.byte "33333333333333333333333333333333"
-	.byte "44444444444444444444444444444444"
-	.byte "55555555555555555555555555555555"
-	.byte "66666666666666666666666666666666"
-	.byte "77777777777777777777777777777777"
+	.byte "000100002000000030000000400000",0,0
+	.byte "111111111111111111111111111111",0,0
+	.byte "222222222222222222222222222222",0,0
+	.byte "333333333333333333333333333333",0,0
+	.byte "444444444444444444444444444444",0,0
+	.byte "555555555555555555555555555555",0,0
+	.byte "666666666666666666666666666666",0,0
+	.byte "777777777777777777777777777777",0,0

@@ -24,6 +24,8 @@
 	frame_count: .res 1
 	pattern_count: .res 1
 	detune_active: .res 1
+	
+	attribute_buffer: .res 64
 
 .segment "ZEROPAGE"
 ; IRQ trampoline
@@ -38,11 +40,11 @@
 	zp_XY_offset: .res 1
 	zp_y_offset: .res 1
 	zp_FX_state: .res 1
-	zp_temp:    .res 1      ;reserves 1 byte of memory
 	irq_counter: .res 1	
 	;NMI_DMC_output: .res 1 ; init to zero, only used once per frame
 
 ;other zp vars
+	zp_temp:    .res 1      ;reserves 1 byte of memory
 	zp_buttons: .res 1
 	zp_previous_buttons: .res 1
 	
@@ -57,6 +59,7 @@
 	zp_map_addr: .res 2
 	
 	zp_tile_queue: .res 30+8
+	zp_attr_buf_offset: .res 1
 	
 	
 ;constants
@@ -214,6 +217,9 @@ loadsprites:
 	lda #$50
 	sta player_y
 	sta player_x
+	
+	lda #3
+	sta zp_camera_x+1
 	
 
 ; init IRQ audio channels
