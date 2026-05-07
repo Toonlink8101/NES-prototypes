@@ -25,7 +25,6 @@
 	pattern_count: .res 1
 	detune_active: .res 1
 	
-	attribute_buffer: .res 64
 
 .segment "ZEROPAGE"
 ; IRQ trampoline
@@ -50,6 +49,7 @@
 	
 ;camera and scrolling
 	zp_camera_x: .res 2
+	zp_camera_speed: .res 1
 	zp_PPU_update: .res 1
 	zp_column_high: .res 1
 	zp_column_low: .res 1
@@ -59,6 +59,7 @@
 	zp_map_addr: .res 2
 	
 	zp_tile_queue: .res 30+8
+	attribute_buffer: .res 64
 	zp_attr_buf_offset: .res 1
 	
 	
@@ -352,6 +353,7 @@ palettedata:
 .include "Draw_background.asm"
 .include "Audio_handler.asm"
 .include "Vblank.asm"
+.include "Main.asm"
 
 
 
