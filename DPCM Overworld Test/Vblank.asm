@@ -74,6 +74,9 @@ Vblank:
 			dey
 		bne:-
 		
+		bit zp_PPU_update
+		bvc skip_PPU_update
+		
 tiles_only:
 		;point PPU to new column of tiles
 		lda zp_column_high

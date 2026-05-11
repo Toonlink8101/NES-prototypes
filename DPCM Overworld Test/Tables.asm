@@ -168,38 +168,38 @@ Map:
 	.byte "eeeeeeeeeeeeeeeeeeeeeeeeeeeeee",$FF,$FF
 	.byte "ffffffffffffffffffffffffffffff",$FF,$FF
 	
-	.byte "******************************",$FF,$FF
-	.byte "((((((((((((((((((((((((((((((",$FF,$FF
-	.byte "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",$FF,$FF
-	.byte "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",$FF,$FF
-	.byte "cccccccccccccccccccccccccccccc",$FF,$FF
-	.byte "dddddddddddddddddddddddddddddd",$FF,$FF
-	.byte "eeeeeeeeeeeeeeeeeeeeeeeeeeeeee",$FF,$FF
-	.byte "ffffffffffffffffffffffffffffff",$FF,$FF
+	.byte "******************************",$05,$05
+	.byte "((((((((((((((((((((((((((((((",$05,$05
+	.byte "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",$05,$05
+	.byte "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",$05,$05
+	.byte "cccccccccccccccccccccccccccccc",$05,$05
+	.byte "dddddddddddddddddddddddddddddd",$05,$05
+	.byte "eeeeeeeeeeeeeeeeeeeeeeeeeeeeee",$05,$05
+	.byte "ffffffffffffffffffffffffffffff",$05,$05
 	
-	.byte "))))))))))))))))))))))))))))))",$AA,$AA
-	.byte "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",$AA,$AA
-	.byte "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",$AA,$AA
-	.byte "##############################",$AA,$AA
-	.byte "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$",$AA,$AA
-	.byte "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%",$AA,$AA
-	.byte "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",$AA,$AA
-	.byte "&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&",$AA,$AA
+	.byte "))))))))))))))))))))))))))))))",$A5,$A5
+	.byte "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",$A5,$A5
+	.byte "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",$A5,$A5
+	.byte "##############################",$A5,$A5
+	.byte "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$",$A5,$A5
+	.byte "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%",$A5,$A5
+	.byte "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",$A5,$A5
+	.byte "&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&",$A5,$A5
 	
-	.byte "888888888888888888888888888888",$55,$55
-	.byte "999999999999999999999999999999",$55,$55
-	.byte "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",$55,$55
-	.byte "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",$55,$55
-	.byte "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",$55,$55
-	.byte "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",$55,$55
-	.byte "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEE",$55,$55
-	.byte "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",$55,$55
+	.byte "888888888888888888888888888888",$FA,$FA
+	.byte "999999999999999999999999999999",$FA,$FA
+	.byte "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",$FA,$FA
+	.byte "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",$FA,$FA
+	.byte "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",$FA,$FA
+	.byte "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",$FA,$FA
+	.byte "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEE",$FA,$FA
+	.byte "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",$FA,$FA
 	
-	.byte "000100002000000030000000400000",0,0
-	.byte "111111111111111111111111111111",0,0
-	.byte "222222222222222222222222222222",0,0
-	.byte "333333333333333333333333333333",0,0
-	.byte "444444444444444444444444444444",0,0
-	.byte "555555555555555555555555555555",0,0
-	.byte "666666666666666666666666666666",0,0
-	.byte "777777777777777777777777777777",0,0
+	.byte "000100002000000030000000400000",$0F,$0F
+	.byte "111111111111111111111111111111",$0F,$0F
+	.byte "222222222222222222222222222222",$0F,$0F
+	.byte "333333333333333333333333333333",$0F,$0F
+	.byte "444444444444444444444444444444",$0F,$0F
+	.byte "555555555555555555555555555555",$0F,$0F
+	.byte "666666666666666666666666666666",$0F,$0F
+	.byte "777777777777777777777777777777",$0F,$0F

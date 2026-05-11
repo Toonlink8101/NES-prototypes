@@ -180,6 +180,35 @@
 	:
 .endmacro
 
+;Generate Pulse Wave, w/ output var
+	; trashes A and X
+	; lfsr stores state as a shift register. Whenever bit7 is set, volume will be aded to Y. $AA or $55 will oscillate normally
+	; divider and lfsr_tap hold the duration of the silent and outputed segments respectively.
+	; counter is the time left until the state (lfsr) is updated, whereupon it is reset to either divider or lfsr_tap. Can be treated like phase
+.macro PulseOutput channel
+	; ?? - ?? cycles
+	; 18 bytes?
+	dec counter+channel*5+channel_vars			;5
+	bne:++										;2,3 if taken
+		;update state
+		asl lfsr+channel*5+channel_vars			;5
+		;if state was low
+		bcs:+									;2,3 if taken
+			lda divider+channel*5+channel_vars	;3
+			ldx volume
+			jmp @reset_end						;3
+		:
+		;if state was high
+			clc									;2
+			inc lfsr+channel*5+channel_vars		;5
+			lda lfsr_tap+channel*5+channel_vars	;3
+			ldx #0
+@reset_end:
+		sta counter+channel*5+channel_vars		;3
+		stx output
+	:
+.endmacro
+
 
 ;Generate Linear Wave
 	;trashes X, leaves output in A
@@ -245,6 +274,39 @@
 	;tay
 .endmacro
 
+;Generate Linear Wave, better volume, output var
+	;trashes X, leaves output in A
+	; Generates triangles, saws, and anything inbetween
+	; counter holds the output value
+	; volume is added to counter each iteration
+	; divider is the "ceiling" for counter. Once counter passes this value, counter is set to lfsr_tap
+	; lfsr_tap holds the decreasing value (-). It's loaded into volume when counter passes divider
+	; lfsr hold the increasing value (+). It's loaded into volume when counter underflows
+	; The period of this generator is roughly as follows: Period = ceil(divider / lfsr) + ciel(divider / lfsr_tap)
+	; Setting lfsr == divider and lfsr_tap == -1 results in a sawtooth
+.macro LinearOutput channel
+	; 28 - 33,35 cycles?
+	; 29 bytes
+	lda counter+channel*5+channel_vars
+	adc volume+channel*5+channel_vars
+	bpl:+
+		ldx lfsr+channel*5+channel_vars
+		stx volume+channel*5+channel_vars
+		lda #8
+	:
+	sta counter+channel*5+channel_vars
+	cmp divider+channel*5+channel_vars
+	bcc:+
+		ldx lfsr_tap+channel*5+channel_vars
+		stx volume+channel*5+channel_vars
+	:
+	alr #%01111100
+	lsr
+	sta output
+	;adc identity_table, y
+	;tay
+.endmacro
+
 
 ;Generate LFSR Wave
 	; trashes A, adds output to Y
@@ -306,6 +368,33 @@
 		tya										;2
 		adc volume+channel*5+channel_vars		;3
 		tay										;2
+	:
+.endmacro
+
+;Generate LFSR Wave w/ output var
+	; trashes A, adds output to Y
+	;When counter hits zero, the LFSR state is iterated
+	; divider is the value counter is reset to
+	; naturally, lfsr_tap holds the tap for the LFSR, and lfsr holds the current lfsr state
+.macro LFSRwOuput channel
+	; ?? - ?? cycles
+	; ? bytes
+	dec counter+channel*5+channel_vars
+	bne:++
+		; reset counter
+		lda divider+channel*5+channel_vars
+		sta counter+channel*5+channel_vars
+		; galois lfsr
+		lda lfsr_tap+channel*5+channel_vars
+		sre lfsr+channel*5+channel_vars			;lsr var, then eor var
+		bcs:+
+			sta lfsr+channel*5+channel_vars
+			lda volume
+			sta output
+			jmp:++
+		:
+		lda #0
+		sta output
 	:
 .endmacro
 
@@ -514,7 +603,45 @@
 	;tay											;2
 .endmacro
 
+;Generate Sample Optimized, w/ output var
+	; trashes A, X, and Y
+	; samples are 4-bit, with two stored in each byte
+	; Playback will endlessly loop through a full page (256 bytes/512 samples) until manually stopped by changing the waveform
+	; divider holds state as a shift register. When bit7 is clear, the low nibble is output. 
+		; Otherwise, the high nibble is output and counter is incremented
+		; Loading $55 into divider plays samples normally. $FF will skip every other sample. $11 will halve(?) playback speed
+	; lfsr holds the low byte of the sample address. 
+	; lfsr_tap holds the high byte of the sample address.
+.macro SampleOptOutput channel
+	; ?? - ?? cycles
+	; ?? bytes
+	ldy #0										;2
+	asl divider+channel*5+channel_vars			;5
+	bcs @read_low								;2, 3 if taken
+;read_high:
+		lax (lfsr+channel*5+channel_vars), Y	;5
+		lda divide_by_16, X						;4
+		jmp @output								;3
+@read_low:
+		lda (lfsr+channel*5+channel_vars), Y	;5
+		anc #%00001111		;and #i, clc		;2
+		inc lfsr+channel*5+channel_vars			;5
+		inc divider+channel*5+channel_vars		;5
+@output:
+	sta output
+.endmacro
 
+
+.macro Output
+	lda output+channel_vars+6*0
+	clc
+	adc output+channel_vars+6*1
+	adc output+channel_vars+6*2
+	adc output+channel_vars+6*3
+	asl
+	
+	rts
+.endmacro
 
 
 
