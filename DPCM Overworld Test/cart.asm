@@ -50,6 +50,7 @@
 ;camera and scrolling
 	zp_camera_x: .res 2
 	zp_camera_speed: .res 1
+	zp_prev_cam_speed: .res 1
 	zp_PPU_update: .res 1
 	zp_column_high: .res 1
 	zp_column_low: .res 1
@@ -57,6 +58,12 @@
 	zp_attr_addr_low: .res 1
 	zp_map_offset: .res 2
 	zp_map_addr: .res 2
+	
+	;zp_tilewnd_left: .res 1
+	;zp_tilewnd_top: .res 1
+	
+	;zp_tile_xL: .res 2
+	;zp_tile_xR: .res 2
 	
 	zp_tile_queue: .res 30+8
 	attribute_buffer: .res 64

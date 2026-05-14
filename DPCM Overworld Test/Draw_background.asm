@@ -85,13 +85,59 @@ draw_map_loop:
 		adc #32
 		sta zp_map_addr
 		bcc:+
-			;dec zp_map_addr+1
 			inc zp_map_addr+1
 		:
 		
 		inx
 		cpx #32
 	bne draw_map_loop
+	
+	;reset ptr
+	lda #<Map
+	;sec
+	;sbc #32*7
+	sta zp_map_addr
+	lda #>Map
+	;clc
+	;adc #4	;start on the 4th page
+	sta zp_map_addr+1
+	
+	
+	lda zp_PPUctrl_state
+	and #%11111011		;disable +32 tile mode
+	sta zp_PPUctrl_state
+	sta $2000
+	
+	;rts
+	
+	bit $2002
+	
+	ldx #32
+draw_attr_loop:
+		lda #$20
+		sta $2006
+		lda #$C0
+		sta $2006
+
+		ldy #30
+		lda (zp_map_addr), Y
+		sta $2007
+		
+		ldy #31
+		lda (zp_map_addr), Y
+		sta $2007
+		
+		;16bit dec to next line of data
+		lda zp_map_addr
+		clc
+		adc #32
+		sta zp_map_addr
+		bcc:+
+			inc zp_map_addr+1
+		:
+		
+		dex
+	bne draw_attr_loop
 	
 	
 	rts

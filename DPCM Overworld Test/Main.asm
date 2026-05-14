@@ -6,12 +6,15 @@ Main:
 	adc zp_camera_speed
 	sta zp_camera_x
 	bcc:+
-		inc zp_camera_x+1
+		bit zp_camera_speed
+		bmi:+
+			inc zp_camera_x+1
 	:
-	bvc:+
-		lda zp_camera_x
-		cmp #$FF
-		bne:+
+	lda zp_camera_x
+	cmp #$FF
+	bne:+
+		bit zp_camera_speed
+		bpl:+
 			dec zp_camera_x+1
 	:
 	
@@ -22,31 +25,40 @@ Main:
 	
 	
 	;check if PPU draw needed
-	lda zp_camera_speed
+	lda #0
+	sta zp_PPU_update
+	
+	lda zp_camera_speed		;make sure camera is moving
 	bne:+
-		lda #0
-		sta zp_PPU_update
-		
 		jmp skip_draw_get
 	:
+	;lda zp_camera_speed		;keep last non-zero camera speed
+	;beq:+
+	;	sta zp_prev_cam_speed
+	;:
+	;lda zp_camera_x			;make sure camera =/= 8x
+	;and #%00000111
+	;bne:+
+	;	jmp skip_draw_get
+	;:
 	
-	ldx #0
-	lda zp_camera_x
+	;flag PPU update
+	lda #$FF
+	sta zp_PPU_update
+	
+	lda zp_camera_x			;if (camera % 8 < 4), then draw left
 	and #%00000111
-	bne:+
-		ldx #$FF
-	:
-	stx zp_PPU_update
-	
-	cpx #$FF
-	beq:+
-		jmp skip_draw_get
-	:
-	
-	bit zp_camera_speed
-	bpl:+
+	cmp #4
+	bcs:+
 		jmp draw_left
 	:
+	
+	;lda zp_camera_speed
+	;lda zp_prev_cam_speed
+	;bpl:+
+	;	jmp draw_left
+	;:
+		
 	;get PPU draw address
 		lda zp_camera_x
 		lsr
@@ -59,6 +71,7 @@ Main:
 		
 		;get offset for reading map
 		lda zp_camera_x
+		and #%11111000
 		sta zp_map_offset
 		lda zp_camera_x+1
 		sta zp_map_offset+1
@@ -94,185 +107,52 @@ Main:
 		;skip attributes for testing
 		;jmp skip_draw_get
 		
+right_attributes:
+		
 		;check for attribute update
+		;lda zp_camera_x			;if (x % 8)+4 != 0, skip attributes
+		;and #%00000111
+		;eor #%00000100
+		;bne:+
+		;	jmp skip_draw_get
+		;:
+		
+		;lda zp_camera_speed		;if moving left, skip attributes
+		;bpl:+
+		;	jmp skip_draw_get
+		;:
+		
+		lda zp_camera_speed		;if moving left, do left attributes
+		bpl:+
+			jmp left_attributes
+		:
+		
 		lda zp_camera_x
 		and #%00011111
 		cmp #0+8;*2;*3
-		;beq new_attr_right_hard
+		bne:+
+			jmp new_attr_right_hard
+		:
 		bcc:+
 			cmp #16
-			bcc new_attr_right_hard
+			bcs:+
+				jmp new_attr_right_hard
 		:
 		cmp #16+8;*2;*3
-		;beq new_attr_right_easy
+		bne:+
+			jmp new_attr_right_easy
+		:
 		bcc:+
 			cmp #32
-			bcc new_attr_right_easy
-			
+			bcs:+
+				jmp new_attr_right_easy	
 		:
-		jmp skip_draw_get
-		
-new_attr_right_easy:
-		;flag update
-		lda zp_PPU_update
-		and #%01111111
-		sta zp_PPU_update
-		
-		;get high byte from nametable
-		lda zp_column_high
-		clc
-		adc #3
-		sta zp_attr_addr_high
-		
-		lda zp_camera_x
-		rol
-		rol
-		rol
-		rol
-		anc #%00000111	;clc
-		adc #$C0
-		sta zp_attr_addr_low	;= attribute base + (scroll / 32)
-		
-		
-		;16bit dec zp_map_addr by 32*3
-		lda zp_map_addr
-		sec
-		sbc #32*3
-		sta zp_map_addr
-		bcs:+
-			dec zp_map_addr+1
-		:
-		
-		;get attribute buffer offset
-		lda zp_camera_x
-		alr #%11111000		;and #i, then lsr
-		lsr					;carry clear
-		adc #256-6
-		sta zp_attr_buf_offset
-		
-		ldx #8
-		:
-			;update tile queue and buffer
-			ldy #30						;queue update
-			lda (zp_map_addr), Y
-			sta zp_tile_queue+30-1, X
-			ldy zp_attr_buf_offset		;buffer update
-			sta attribute_buffer, Y
-			dex							;step
-			ldy #31						;queue update
-			lda (zp_map_addr), Y
-			sta zp_tile_queue+30-1, X
-			ldy zp_attr_buf_offset		;buffer update
-			sta attribute_buffer+1, Y
-			
-			;16bit inc zp_map_addr by 32
-			lda zp_map_addr
-			clc
-			adc #32
-			sta zp_map_addr
-			bcc:+
-				inc zp_map_addr+1
-			:
-			
-			;inc attribute buffer offset
-			lda zp_attr_buf_offset
-			clc
-			adc #2
-			;and #%00111111
-			sta zp_attr_buf_offset
-			
-			dex							;step
-		bne:--
-		
-		jmp skip_draw_get
-		
-		
-new_attr_right_hard:
-		;flag update
-		lda zp_PPU_update
-		and #%01111111
-		sta zp_PPU_update
-		
-		;get high byte from nametable
-		lda zp_column_high
-		clc
-		adc #3
-		sta zp_attr_addr_high
-		
-		lda zp_camera_x
-		rol
-		rol
-		rol
-		rol
-		anc #%00000111	;clc
-		adc #$C0
-		sta zp_attr_addr_low	;= attribute base + (scroll / 32)
-		
-		
-		;16bit dec zp_map_addr by 32
-		lda zp_map_addr
-		sec
-		sbc #32*1
-		sta zp_map_addr
-		bcs:+
-			dec zp_map_addr+1
-		:
-		
-		;get attribute buffer offset
-		lda zp_camera_x
-		alr #%11111000		;and #i, then lsr
-		lsr
-		adc #256-2
-		sta zp_attr_buf_offset
-		
-		ldx #8
-		:
-			;blend new data w/ buffered data
-			ldy #30
-			lda (zp_map_addr), Y
-			and #%00110011
-			sta zp_temp
-			ldy zp_attr_buf_offset	
-			lda attribute_buffer, Y
-			and #%11001100
-			ora zp_temp
-			sta zp_tile_queue+30-1, X
-			dex
-			
-			ldy #31
-			lda (zp_map_addr), Y
-			and #%00110011
-			sta zp_temp
-			ldy zp_attr_buf_offset	
-			lda attribute_buffer+1, Y
-			and #%11001100
-			ora zp_temp
-			sta zp_tile_queue+30-1, X
-			
-			;16bit inc zp_map_addr by 32
-			lda zp_map_addr
-			clc
-			adc #32
-			sta zp_map_addr
-			bcc:+
-				inc zp_map_addr+1
-			:
-			
-			;inc attribute buffer offset
-			lda zp_attr_buf_offset
-			clc
-			adc #2
-			;and #%00111111
-			sta zp_attr_buf_offset
-			
-			dex
-		bne:--
-		
 		jmp skip_draw_get
 		
 draw_left:
 		;get PPU draw address
 		lda zp_camera_x
+		and #%11111000
 		lsr
 		lsr
 		lsr
@@ -283,10 +163,11 @@ draw_left:
 		
 		;get offset for reading map
 		lda zp_camera_x
+		and #%11111000
 		sta zp_map_offset
 		lda zp_camera_x+1
 		sec
-		sbc #0;2;4?	;read left side not right?
+		sbc #1;4;?	;read left side not right?
 		sta zp_map_offset+1
 		
 		;16bit asl twice
@@ -317,181 +198,49 @@ draw_left:
 			dex
 		bne:-
 		
+		;skip attributes for testing
+		jmp skip_draw_get
+		
 		;check for attribute update
+		;lda zp_camera_x			;if x % 8 != 0, skip attributes
+		;and #%00000111
+		;bne:+
+		;	jmp skip_draw_get
+		;:
+		
+		lda zp_camera_speed		;if moving right, do right attributes
+		bmi:+
+			jmp right_attributes
+		:
+		
+left_attributes:
+		
 		lda zp_camera_x
 		and #%00011111
 		cmp #0+8;*2;*3
-		beq new_attr_left_easy
+		bne:+
+			jmp new_attr_left_easy
+		:
 		bcc:+
 			cmp #16
-			bcc new_attr_left_easy
+			bcs:+
+				jmp new_attr_left_easy
 		:
 		cmp #16+8;*2;*3
-		beq new_attr_left_hard
+		bne:+
+			jmp new_attr_left_hard
+		:
 		bcc:+
 			cmp #32
-			bcc new_attr_left_hard
+			bcs:+
+				jmp new_attr_left_hard
 		:
 		jmp skip_draw_get
 		
-new_attr_left_easy:
-		;flag update
-		lda zp_PPU_update
-		and #%01111111
-		sta zp_PPU_update
 		
-		;get high byte from nametable
-		lda zp_column_high
-		clc
-		adc #3
-		sta zp_attr_addr_high
-		
-		lda zp_camera_x
-		rol
-		rol
-		rol
-		rol
-		anc #%00000111	;clc
-		adc #$C0
-		sta zp_attr_addr_low	;= attribute base + (scroll / 32)
-		
-		
-		;16bit dec zp_map_addr by 32*3
-		lda zp_map_addr
-		sec
-		sbc #32*1
-		sta zp_map_addr
-		bcs:+
-			dec zp_map_addr+1
-		:
-		
-		;get attribute buffer offset
-		lda zp_camera_x
-		alr #%11111000		;and #i, then lsr
-		lsr					;carry clear
-		adc #256-2
-		sta zp_attr_buf_offset
-		
-		ldx #8
-		:
-			;update tile queue and buffer
-			ldy #30						;queue update
-			lda (zp_map_addr), Y
-			sta zp_tile_queue+30-1, X
-			ldy zp_attr_buf_offset		;buffer update
-			sta attribute_buffer, Y
-			dex							;step
-			ldy #31						;queue update
-			lda (zp_map_addr), Y
-			sta zp_tile_queue+30-1, X
-			ldy zp_attr_buf_offset		;buffer update
-			sta attribute_buffer+1, Y
-			
-			;16bit inc zp_map_addr by 32
-			lda zp_map_addr
-			clc
-			adc #32
-			sta zp_map_addr
-			bcc:+
-				inc zp_map_addr+1
-			:
-			
-			;inc attribute buffer offset
-			lda zp_attr_buf_offset
-			clc
-			adc #2
-			;and #%00111111
-			sta zp_attr_buf_offset
-			
-			dex							;step
-		bne:--
-		
-		jmp skip_draw_get
-		
-		
-new_attr_left_hard:
-		;flag update
-		lda zp_PPU_update
-		and #%01111111
-		sta zp_PPU_update
-		
-		;get high byte from nametable
-		lda zp_column_high
-		clc
-		adc #3
-		sta zp_attr_addr_high
-		
-		lda zp_camera_x
-		rol
-		rol
-		rol
-		rol
-		anc #%00000111	;clc
-		adc #$C0
-		sta zp_attr_addr_low	;= attribute base + (scroll / 32)
-		
-		
-		;16bit dec zp_map_addr by 32
-		lda zp_map_addr
-		sec
-		sbc #32*3
-		sta zp_map_addr
-		bcs:+
-			dec zp_map_addr+1
-		:
-		
-		;get attribute buffer offset
-		lda zp_camera_x
-		alr #%11111000		;and #i, then lsr
-		lsr					;carry clear
-		adc #256-6
-		sta zp_attr_buf_offset
-		
-		ldx #8
-		:
-			;blend new data w/ buffered data
-			ldy #30
-			lda (zp_map_addr), Y
-			and #%11001100
-			sta zp_temp
-			ldy zp_attr_buf_offset	
-			lda attribute_buffer, Y
-			and #%00110011
-			ora zp_temp
-			sta zp_tile_queue+30-1, X
-			dex
-			
-			ldy #31
-			lda (zp_map_addr), Y
-			and #%11001100
-			sta zp_temp
-			ldy zp_attr_buf_offset	
-			lda attribute_buffer+1, Y
-			and #%00110011
-			ora zp_temp
-			sta zp_tile_queue+30-1, X
-			
-			;16bit inc zp_map_addr by 32
-			lda zp_map_addr
-			clc
-			adc #32
-			sta zp_map_addr
-			bcc:+
-				inc zp_map_addr+1
-			:
-			
-			;inc attribute buffer offset
-			lda zp_attr_buf_offset
-			clc
-			adc #2
-			;and #%00111111
-			sta zp_attr_buf_offset
-			
-			dex
-		bne:--
-		
-		jmp skip_draw_get
-		
+.include "AttributeMath.asm"
+
+
 skip_draw_get:
 
 ;reset camera before inputs
