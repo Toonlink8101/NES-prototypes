@@ -129,21 +129,21 @@ right_attributes:
 		
 		lda zp_camera_x
 		and #%00011111
-		cmp #0+8;*2;*3
+		cmp #0;+8-4;*2;*3
 		bne:+
 			jmp new_attr_right_hard
 		:
 		bcc:+
-			cmp #16
+			cmp #16;-4
 			bcs:+
 				jmp new_attr_right_hard
 		:
-		cmp #16+8;*2;*3
+		cmp #16;+8-4;*2;*3
 		bne:+
 			jmp new_attr_right_easy
 		:
 		bcc:+
-			cmp #32
+			cmp #32;-4
 			bcs:+
 				jmp new_attr_right_easy	
 		:
@@ -199,7 +199,7 @@ draw_left:
 		bne:-
 		
 		;skip attributes for testing
-		jmp skip_draw_get
+		;jmp skip_draw_get
 		
 		;check for attribute update
 		;lda zp_camera_x			;if x % 8 != 0, skip attributes
@@ -215,23 +215,29 @@ draw_left:
 		
 left_attributes:
 		
+		lda zp_camera_x			;if x % 8 != 0, skip attributes
+		and #%00000111
+		bne:+
+			jmp skip_draw_get
+		:
+		
 		lda zp_camera_x
 		and #%00011111
-		cmp #0+8;*2;*3
+		cmp #0;+4;+8;*2;*3
 		bne:+
 			jmp new_attr_left_easy
 		:
 		bcc:+
-			cmp #16
+			cmp #16;8+4;16
 			bcs:+
 				jmp new_attr_left_easy
 		:
-		cmp #16+8;*2;*3
+		cmp #16;+4;+8;*2;*3
 		bne:+
 			jmp new_attr_left_hard
 		:
 		bcc:+
-			cmp #32
+			cmp #32;16+8+4;32
 			bcs:+
 				jmp new_attr_left_hard
 		:

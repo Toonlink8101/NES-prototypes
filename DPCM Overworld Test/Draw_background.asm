@@ -108,7 +108,7 @@ draw_map_loop:
 	sta zp_PPUctrl_state
 	sta $2000
 	
-	;rts
+	rts
 	
 	bit $2002
 	

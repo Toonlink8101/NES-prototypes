@@ -19,22 +19,59 @@ new_attr_right_easy:
 		adc #$C0
 		sta zp_attr_addr_low	;= attribute base + (scroll / 32)
 		
+		;recalc map address
+		;get offset for reading map
+		lda zp_camera_x
+		and #%11111000
+		sta zp_map_offset
+		lda zp_camera_x+1
+		sta zp_map_offset+1
 		
-		;16bit dec zp_map_addr by 32*3
+		;16bit asl twice
+		asl zp_map_offset
+		rol zp_map_offset+1
+		asl zp_map_offset
+		lda zp_map_offset+1
+		rol
+		and #%00000111			;limit to 8 pages
+		sta zp_map_offset+1
+		
+		clc
+		lda #<Map
+		adc zp_map_offset
+		sta zp_map_addr
+		lda #>Map
+		adc zp_map_offset+1
+		sta zp_map_addr+1
+		
+		
+		;get attribute buffer offset
+		lda zp_camera_x
+		lsr
+		alr #%00001100
+		tax
+		lda zp_camera_x
+		alr #%11111000		;and #i, then lsr
+		lsr					;carry clear
+		sec
+		sbc identity_table, X
+		;adc #256-4;6
+		sta zp_attr_buf_offset
+		
+		;16bit dec zp_map_addr by 32
+		txa
+		asl
+		asl
+		asl
+		asl
+		tax
 		lda zp_map_addr
 		sec
-		sbc #32*3
+		sbc identity_table, X
 		sta zp_map_addr
 		bcs:+
 			dec zp_map_addr+1
 		:
-		
-		;get attribute buffer offset
-		lda zp_camera_x
-		alr #%11111000		;and #i, then lsr
-		lsr					;carry clear
-		adc #256-6
-		sta zp_attr_buf_offset
 		
 		ldx #8
 		:
@@ -95,21 +132,59 @@ new_attr_right_hard:
 		sta zp_attr_addr_low	;= attribute base + (scroll / 32)
 		
 		
+		;recalc map address
+		;get offset for reading map
+		lda zp_camera_x
+		and #%11111000
+		sta zp_map_offset
+		lda zp_camera_x+1
+		sta zp_map_offset+1
+		
+		;16bit asl twice
+		asl zp_map_offset
+		rol zp_map_offset+1
+		asl zp_map_offset
+		lda zp_map_offset+1
+		rol
+		and #%00000111			;limit to 8 pages
+		sta zp_map_offset+1
+		
+		clc
+		lda #<Map
+		adc zp_map_offset
+		sta zp_map_addr
+		lda #>Map
+		adc zp_map_offset+1
+		sta zp_map_addr+1
+		
+		
+		;get attribute buffer offset
+		lda zp_camera_x
+		lsr
+		alr #%00001100
+		tax
+		lda zp_camera_x
+		alr #%11111000		;and #i, then lsr
+		lsr					;carry clear
+		sec
+		sbc identity_table, X
+		;adc #256-4;6
+		sta zp_attr_buf_offset
+		
 		;16bit dec zp_map_addr by 32
+		txa
+		asl
+		asl
+		asl
+		asl
+		tax
 		lda zp_map_addr
 		sec
-		sbc #32*1
+		sbc identity_table, X
 		sta zp_map_addr
 		bcs:+
 			dec zp_map_addr+1
 		:
-		
-		;get attribute buffer offset
-		lda zp_camera_x
-		alr #%11111000		;and #i, then lsr
-		lsr
-		adc #256-2
-		sta zp_attr_buf_offset
 		
 		ldx #8
 		:
@@ -177,22 +252,61 @@ new_attr_left_easy:
 		adc #$C0
 		sta zp_attr_addr_low	;= attribute base + (scroll / 32)
 		
+		;recalc map address
+		;get offset for reading map
+		lda zp_camera_x
+		and #%11111000
+		sta zp_map_offset
+		lda zp_camera_x+1
+		sec
+		sbc #1;4;?	;read left side not right?
+		sta zp_map_offset+1
 		
-		;16bit dec zp_map_addr by 32*3
+		;16bit asl twice
+		asl zp_map_offset
+		rol zp_map_offset+1
+		asl zp_map_offset
+		lda zp_map_offset+1
+		rol
+		and #%00000111			;limit to 8 pages
+		sta zp_map_offset+1
+		
+		clc
+		lda #<Map
+		adc zp_map_offset
+		sta zp_map_addr
+		lda #>Map
+		adc zp_map_offset+1
+		sta zp_map_addr+1
+		
+		
+		;get attribute buffer offset
+		lda zp_camera_x
+		lsr
+		alr #%00001100
+		tax
+		lda zp_camera_x
+		alr #%11111000		;and #i, then lsr
+		lsr					;carry clear
+		sec
+		sbc identity_table, X
+		;adc #256-4;6
+		sta zp_attr_buf_offset
+		
+		;16bit dec zp_map_addr by 32
+		txa
+		asl
+		asl
+		asl
+		asl
+		tax
 		lda zp_map_addr
 		sec
-		sbc #32*1
+		sbc identity_table, X
 		sta zp_map_addr
 		bcs:+
 			dec zp_map_addr+1
 		:
-		
-		;get attribute buffer offset
-		lda zp_camera_x
-		alr #%11111000		;and #i, then lsr
-		lsr					;carry clear
-		adc #256-2
-		sta zp_attr_buf_offset
 		
 		ldx #8
 		:
@@ -253,21 +367,62 @@ new_attr_left_hard:
 		sta zp_attr_addr_low	;= attribute base + (scroll / 32)
 		
 		
+		;recalc map address
+		;get offset for reading map
+		lda zp_camera_x
+		and #%11111000
+		sta zp_map_offset
+		lda zp_camera_x+1
+		sec
+		sbc #1;4;?	;read left side not right?
+		sta zp_map_offset+1
+		
+		;16bit asl twice
+		asl zp_map_offset
+		rol zp_map_offset+1
+		asl zp_map_offset
+		lda zp_map_offset+1
+		rol
+		and #%00000111			;limit to 8 pages
+		sta zp_map_offset+1
+		
+		clc
+		lda #<Map
+		adc zp_map_offset
+		sta zp_map_addr
+		lda #>Map
+		adc zp_map_offset+1
+		sta zp_map_addr+1
+		
+		
+		;get attribute buffer offset
+		lda zp_camera_x
+		lsr
+		alr #%00001100
+		tax
+		lda zp_camera_x
+		alr #%11111000		;and #i, then lsr
+		lsr					;carry clear
+		sec
+		sbc identity_table, X
+		;adc #256-4;6
+		sta zp_attr_buf_offset
+		
 		;16bit dec zp_map_addr by 32
+		txa
+		asl
+		asl
+		asl
+		asl
+		tax
 		lda zp_map_addr
 		sec
-		sbc #32*3
+		sbc identity_table, X
 		sta zp_map_addr
 		bcs:+
 			dec zp_map_addr+1
 		:
 		
-		;get attribute buffer offset
-		lda zp_camera_x
-		alr #%11111000		;and #i, then lsr
-		lsr					;carry clear
-		adc #256-6
-		sta zp_attr_buf_offset
 		
 		ldx #8
 		:
