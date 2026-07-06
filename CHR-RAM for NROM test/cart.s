@@ -3,9 +3,9 @@
 	.byte $1A
 	.byte $02		;amount of PRG ROM in 16K units
 	.byte $00		;amount of CHR ROM in 8K units
-	.byte $00		;mapper and mirroing
-	.byte $00, $00, $00, $00
-	.byte $07
+	.byte $02		;mapper and mirroing
+	.byte $00, $00, $00, $07	;prg-ram
+	.byte $07	;chr-ram
 	.byte $00, $00, $00, $00
 .segment "ZEROPAGE"
 VAR:	.RES 1	;reserves 1 byte of memory for a variable named VAR
@@ -143,6 +143,19 @@ loop:
 	bne loop
 	
 endloop:
+
+;check PRG-RAM
+	lda #0
+	sta $6000
+	lda #$FF
+	sta $6000
+	lda $6000
+	ldx #%00010110
+	eor #$FF
+	beq:+
+		ldx #%00011110
+	:
+	
 	
 ;ENABLE INTERUPTS
 	CLI
@@ -150,8 +163,8 @@ endloop:
 	LDA #%10010000
 	STA $2000			;WHEN VBLANK OCCURS CALL NMI
 	
-	LDA #%00011110		;show sprites and background
-	STA $2001
+	;LDA #%00011110		;show sprites and background
+	STX $2001
 	
 	INFLOOP:
 		JMP INFLOOP
