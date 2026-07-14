@@ -19,6 +19,20 @@ Main:
 	:
 	
 	
+	;TODO: change this to clamp Y between 0 and 240
+	lda zp_camera_y
+	clc
+	adc zp_camera_speed_y
+	cmp #250
+	bcc:+
+		lda #0
+	:
+	cmp #240
+	bcc:+
+		lda #239
+	:
+	sta zp_camera_y	
+	
 	;bne:+
 	;	inc zp_camera_x+1
 	;:
@@ -129,7 +143,7 @@ right_attributes:
 		
 		lda zp_camera_x
 		and #%00011111
-		cmp #0;+8-4;*2;*3
+		cmp #0+8;-4;*2;*3
 		bne:+
 			jmp new_attr_right_hard
 		:
@@ -138,7 +152,7 @@ right_attributes:
 			bcs:+
 				jmp new_attr_right_hard
 		:
-		cmp #16;+8-4;*2;*3
+		cmp #16+8;-4;*2;*3
 		bne:+
 			jmp new_attr_right_easy
 		:
@@ -228,7 +242,7 @@ left_attributes:
 			jmp new_attr_left_easy
 		:
 		bcc:+
-			cmp #16;8+4;16
+			cmp #16-8;8+4;16
 			bcs:+
 				jmp new_attr_left_easy
 		:
@@ -237,7 +251,7 @@ left_attributes:
 			jmp new_attr_left_hard
 		:
 		bcc:+
-			cmp #32;16+8+4;32
+			cmp #32-8;16+8+4;32
 			bcs:+
 				jmp new_attr_left_hard
 		:
@@ -252,6 +266,7 @@ skip_draw_get:
 ;reset camera before inputs
 	lda #0
 	sta zp_camera_speed
+	sta zp_camera_speed_y
 	
 ;read inputs
 	lda zp_buttons
@@ -285,13 +300,17 @@ r_button_end:
 	lda zp_buttons
 	and #BUTTON_DOWN
 	beq:+
-		inc player_y
+		;inc player_y
+		lda #1
+		sta zp_camera_speed_y
 	:
 	
 	lda zp_buttons
 	and #BUTTON_UP
 	beq:+
-		dec player_y
+		;dec player_y
+		lda #$FF
+		sta zp_camera_speed_y
 	:
 
 	;write new y position to OAM mirror

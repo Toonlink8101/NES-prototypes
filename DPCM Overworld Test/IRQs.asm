@@ -101,7 +101,7 @@ timing_over:
 		
 		
 		;get y offset
-		lda #0
+		lda zp_camera_y
 		sta zp_y_offset
 
 			

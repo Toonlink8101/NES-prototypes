@@ -55,27 +55,49 @@ Vblank:
 	bit $2002
 
 	lda zp_PPU_update
-	beq skip_PPU_update
-	bmi tiles_only
+	bne:+
+		jmp skip_PPU_update
+	:
+	bpl:+
+		jmp tiles_only
+	:
 		;attribute update
-		ldx zp_attr_addr_low
-		ldy #8
-		:
-			lda zp_attr_addr_high
+		ldy zp_attr_addr_high
+		lda zp_attr_addr_low
+		clc
+		count .set 8
+		.repeat 8
+			sty $2006
 			sta $2006
-			stx $2006
+			ldx zp_tile_queue+30-1+count
+			stx $2007
+			adc #8
 		
-			lda zp_tile_queue+30-1, Y
-			sta $2007
-			
-			txa
-			axs	#256-8	;adds 8 to X
+			count .set count-1
+		.endrepeat
 		
-			dey
-		bne:-
+		; attribute update for lower nametable
+		lda zp_attr_addr_high
+		clc
+		adc #8
+		tay
+		lda zp_attr_addr_low
+		clc
+		count .set 8
+		.repeat 8
+			sty $2006
+			sta $2006
+			ldx zp_tile_queue+30-1+count
+			stx $2007
+			adc #8
+		
+			count .set count-1
+		.endrepeat
 		
 		bit zp_PPU_update
-		bvc skip_PPU_update
+		bvs:+
+			jmp skip_PPU_update
+		:
 		
 tiles_only:
 		;point PPU to new column of tiles
@@ -86,14 +108,31 @@ tiles_only:
 		sty $2006
 		cli
 		
-		;ldx #30
-		ldy #30
-		:
-			lda zp_tile_queue-1, Y
+		count .set 30
+		.repeat 30
+			lda zp_tile_queue-1+count
 			sta $2007
-			dey
-			;dex
-		bne:-
+			
+			count .set count-1
+		.endrepeat
+		
+		;tiles for lower nametable
+		lda zp_column_high
+		clc
+		adc #8
+		ldy zp_column_low
+		sei
+		sta $2006
+		sty $2006
+		cli
+		
+		count .set 30
+		.repeat 30
+			lda zp_tile_queue-1+count
+			sta $2007
+			
+			count .set count-1
+		.endrepeat
 		
 		
 skip_PPU_update:

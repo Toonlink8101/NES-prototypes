@@ -49,7 +49,9 @@
 	
 ;camera and scrolling
 	zp_camera_x: .res 2
+	zp_camera_y: .res 2
 	zp_camera_speed: .res 1
+	zp_camera_speed_y: .res 1
 	zp_prev_cam_speed: .res 1
 	zp_PPU_update: .res 1
 	zp_column_high: .res 1
